@@ -6,6 +6,92 @@ sizes, and inference at both 640 and 1280 pixels.
 
 The default model is `yolov8n`, optimized for fast iteration on a T4.
 
+## Quick start
+
+### 1. Install
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+
+export PIP_PROXY='http://user:password@proxy.example:3128'
+python3 -m pip install --proxy "$PIP_PROXY" --upgrade pip
+python3 -m pip install --proxy "$PIP_PROXY" -e '.[dev,tune]'
+```
+
+### 2. Configure Azure
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and keep the connection string in single quotes:
+
+```bash
+AZURE_STORAGE_CONNECTION_STRING='paste-full-connection-string-here'
+AZURE_TRAIN_CONTAINER='train-container-name'
+AZURE_VAL_CONTAINER='validation-container-name'
+```
+
+Load the environment:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+### 3. Add model weights
+
+Copy the pretrained nano checkpoint to:
+
+```text
+weights/yolov8n.pt
+```
+
+The repository does not download weights automatically.
+
+### 4. Download and check the dataset
+
+```bash
+make download
+make audit
+```
+
+### 5. Start in the background
+
+```bash
+make
+```
+
+`make start` is equivalent. The command prints a PID and a log path, for
+example:
+
+```text
+Pipeline started in the background.
+PID: 12345
+Log: runs/launcher/20260810-120000.log
+Follow: tail -f runs/launcher/20260810-120000.log
+```
+
+You may close the terminal or disconnect SSH after this message. The process
+continues as long as the Azure VM remains running.
+
+Follow progress using the exact path printed by the launcher:
+
+```bash
+tail -f runs/launcher/20260810-120000.log
+```
+
+Check whether the process is still alive:
+
+```bash
+ps -p 12345 -o pid,etime,cmd
+```
+
+The background pipeline creates a tuning subset, finds hyperparameters, trains
+on the full dataset, and validates `best.pt` at 640, 960, and 1280 pixels.
+
 ## 1. Expected Azure data
 
 Use one container for training and one for validation. Both containers may be

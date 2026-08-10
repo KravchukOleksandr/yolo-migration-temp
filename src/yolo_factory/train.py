@@ -10,10 +10,17 @@ from .common import dump_json, load_yaml, materialize_dataset_config, run_metada
 MODEL_SIZES = {"n", "s", "m"}
 
 
-def model_name(size: str) -> str:
+def model_path(size: str, weights_dir: str | Path = "weights") -> Path:
     if size not in MODEL_SIZES:
         raise ValueError(f"Model size must be one of {sorted(MODEL_SIZES)}")
-    return f"yolov8{size}.pt"
+    path = Path(weights_dir) / f"yolov8{size}.pt"
+    if not path.is_absolute():
+        path = path.resolve()
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Missing local weights: {path}. Place yolov8{size}.pt there first."
+        )
+    return path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,11 +45,11 @@ def main() -> None:
         data_path = config_path.parent / data_path
     data = materialize_dataset_config(data_path)
     parameters.update(data=str(data), project=str(project), name=name)
-    weights = model_name(size)
+    weights = model_path(size, config.get("weights_dir", "weights"))
     if args.resume:
-        weights = args.resume
+        weights = Path(args.resume).resolve()
         parameters["resume"] = True
-    model = YOLO(weights)
+    model = YOLO(str(weights))
     model.train(**parameters)
     run_dir = Path(model.trainer.save_dir)
     dump_json(

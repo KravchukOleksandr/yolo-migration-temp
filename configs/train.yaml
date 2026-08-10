@@ -1,4 +1,5 @@
 model: s
+weights_dir: weights
 data: data.yaml
 project: runs/train
 name: null

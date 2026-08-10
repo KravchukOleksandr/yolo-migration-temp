@@ -47,13 +47,6 @@ def read_record(image_path: Path, image_root: Path) -> ImageRecord:
                 raise ValueError(f"{path}:{line_number}: invalid class or center")
             if box_width <= 0 or box_height <= 0 or box_width > 1 or box_height > 1:
                 raise ValueError(f"{path}:{line_number}: invalid box size")
-            if (
-                x - box_width / 2 < 0
-                or x + box_width / 2 > 1
-                or y - box_height / 2 < 0
-                or y + box_height / 2 > 1
-            ):
-                raise ValueError(f"{path}:{line_number}: box crosses image boundary")
             boxes.append((class_id, x, y, box_width, box_height))
     return ImageRecord(image_path, path, width, height, tuple(boxes))
 

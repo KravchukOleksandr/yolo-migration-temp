@@ -3,6 +3,7 @@ from pathlib import Path
 from PIL import Image
 
 from yolo_factory.dataset import box_diagonal, label_path, read_record
+from yolo_factory.train import model_path
 
 
 def test_read_record(tmp_path: Path) -> None:
@@ -30,3 +31,9 @@ def test_nested_label_path(tmp_path: Path) -> None:
         tmp_path / "labels" / "camera-1" / "frame.txt"
     )
 
+
+def test_local_model_path(tmp_path: Path) -> None:
+    weights = tmp_path / "yolov8s.pt"
+    weights.touch()
+
+    assert model_path("s", tmp_path) == weights

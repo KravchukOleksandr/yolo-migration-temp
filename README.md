@@ -99,7 +99,32 @@ that every image has a matching label. To change concurrency:
 yolo-download --workers 8
 ```
 
-## 4. Audit the dataset
+## 4. Add local pretrained weights
+
+The training code never downloads model weights. Copy the required files into
+the local `weights/` directory:
+
+```text
+weights/
+├── yolov8n.pt
+├── yolov8s.pt
+└── yolov8m.pt
+```
+
+Only the selected model is required. The default configuration uses
+`weights/yolov8s.pt`. Weight files are ignored by Git.
+
+Verify the file before starting a long run:
+
+```bash
+ls -lh weights/yolov8s.pt
+```
+
+If the selected file is missing, training stops with a clear error and does not
+attempt a network download. Change `weights_dir` in the training and tuning
+configurations only when the files must be stored elsewhere.
+
+## 5. Audit the dataset
 
 Run the audit before the first experiment:
 
@@ -119,7 +144,7 @@ The report is written to `runs/dataset-audit/` and contains:
 Fix all reported errors before training. Empty labels are allowed only when they
 intentionally represent background images.
 
-## 5. Train a baseline
+## 6. Train a baseline
 
 The default configuration trains `yolov8s` at a base size of 1024 with
 multi-scale augmentation. Batch size is selected automatically for the GPU.
@@ -149,7 +174,7 @@ yolo-train \
 Training settings are stored in `configs/train.yaml`. Ultralytics saves losses,
 metrics, plots, timings, and `best.pt`/`last.pt` under `runs/train/`.
 
-## 6. Tune hyperparameters
+## 7. Tune hyperparameters
 
 Create a deterministic subset first. By default it contains up to 10,000 train
 and 2,000 validation images:
@@ -180,7 +205,7 @@ rate, weight decay, mosaic, scale, translation, and mixup. Edit
 `configs/tune.yaml` to change the trial count, epochs, model, or image size.
 The best parameters are saved to `runs/tune/best.json`.
 
-## 7. Tune, train, and validate with one command
+## 8. Tune, train, and validate with one command
 
 After the dataset has been downloaded, run the complete pipeline:
 
@@ -224,7 +249,7 @@ The pipeline may take a long time with the default 20 tuning trials. For an
 initial smoke test, set `trials: 2`, `epochs: 3` in `configs/tune.yaml` and
 temporarily reduce `epochs` in `configs/train.yaml`.
 
-## 8. Validate an existing checkpoint
+## 9. Validate an existing checkpoint
 
 Validate any checkpoint at all deployment resolutions:
 
@@ -237,7 +262,7 @@ yolo-validate \
 Results are saved under `runs/validation/`. Compare recall, `mAP50-95`, and
 inference time at 640 and 1280 before choosing the production resolution.
 
-## 9. Quality checks
+## 10. Quality checks
 
 ```bash
 make lint

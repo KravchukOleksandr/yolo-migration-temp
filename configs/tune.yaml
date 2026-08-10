@@ -1,5 +1,6 @@
 data: data_tune.yaml
 model: s
+weights_dir: weights
 project: runs/tune
 trials: 20
 epochs: 30

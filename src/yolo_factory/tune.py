@@ -8,7 +8,7 @@ import torch
 from ultralytics import YOLO
 
 from .common import dump_json, load_yaml, materialize_dataset_config
-from .train import model_name
+from .train import model_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,7 +55,10 @@ def main() -> None:
             "plots": False,
         }
         try:
-            metrics = YOLO(model_name(config.get("model", "s"))).train(**parameters)
+            weights = model_path(
+                config.get("model", "s"), config.get("weights_dir", "weights")
+            )
+            metrics = YOLO(str(weights)).train(**parameters)
             return float(metrics.results_dict["metrics/mAP50-95(B)"])
         finally:
             gc.collect()

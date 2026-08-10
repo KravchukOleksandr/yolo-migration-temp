@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import statistics
+import time
 from pathlib import Path
 
 from .common import dump_json, resolve_dataset_paths
@@ -23,7 +24,10 @@ def scan(image_root: Path, csv_path: Path) -> dict[str, object]:
     errors: list[str] = []
     missing_labels = 0
     empty_labels = 0
-    for image_path in image_files(image_root):
+    paths = image_files(image_root)
+    started = time.monotonic()
+    print(f"Scanning {len(paths)} images in {image_root}", flush=True)
+    for index, image_path in enumerate(paths, start=1):
         try:
             record = read_record(image_path, image_root)
         except (OSError, ValueError) as error:
@@ -45,6 +49,14 @@ def scan(image_root: Path, csv_path: Path) -> dict[str, object]:
                 "max_box_diagonal": max(image_diagonals, default=""),
             }
         )
+        if index % 1000 == 0 or index == len(paths):
+            elapsed = time.monotonic() - started
+            rate = index / elapsed if elapsed else 0.0
+            print(
+                f"Audit: {index}/{len(paths)} images, "
+                f"{rate:.1f} images/s, {elapsed / 60:.1f} min",
+                flush=True,
+            )
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     with csv_path.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]) if rows else ["image"])

@@ -1,0 +1,9 @@
+data: data_tune.yaml
+model: s
+project: runs/tune
+trials: 20
+epochs: 30
+imgsz: 960
+batch: -1
+workers: 8
+seed: 42

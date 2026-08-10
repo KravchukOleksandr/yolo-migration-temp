@@ -1,0 +1,33 @@
+.PHONY: setup download audit subset tune train validate pipeline test lint
+
+PYTHON ?= python3
+
+setup:
+	$(PYTHON) -m pip install -e '.[dev,tune]'
+
+download:
+	yolo-download
+
+audit:
+	yolo-audit --data configs/data.yaml --output runs/dataset-audit
+
+subset:
+	yolo-subset --data configs/data.yaml --output configs/data_tune.yaml
+
+tune:
+	yolo-tune --config configs/tune.yaml
+
+train:
+	yolo-train --config configs/train.yaml
+
+validate:
+	yolo-validate --weights runs/train/yolov8s/weights/best.pt
+
+pipeline:
+	yolo-pipeline
+
+test:
+	pytest -q
+
+lint:
+	ruff check .

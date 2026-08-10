@@ -1,0 +1,22 @@
+model: s
+data: data.yaml
+project: runs/train
+name: null
+train:
+  imgsz: 1024
+  multi_scale: 0.25
+  batch: -1
+  epochs: 150
+  patience: 30
+  optimizer: AdamW
+  lr0: 0.001
+  weight_decay: 0.0005
+  amp: true
+  cos_lr: true
+  close_mosaic: 15
+  cache: disk
+  workers: 8
+  seed: 42
+  deterministic: true
+  single_cls: true
+  plots: true

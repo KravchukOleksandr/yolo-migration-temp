@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "yolo-factory"
+version = "0.1.0"
+description = "Compact YOLOv8 training pipeline for person detection"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "azure-storage-blob>=12.22",
+    "pillow>=10.0",
+    "pyyaml>=6.0",
+    "torch>=2.2",
+    "ultralytics>=8.3,<9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.9"]
+tune = ["optuna>=4.0"]
+
+[project.scripts]
+yolo-audit = "yolo_factory.audit:main"
+yolo-download = "yolo_factory.download:main"
+yolo-pipeline = "yolo_factory.pipeline:main"
+yolo-subset = "yolo_factory.subset:main"
+yolo-train = "yolo_factory.train:main"
+yolo-tune = "yolo_factory.tune:main"
+yolo-validate = "yolo_factory.validate:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/yolo_factory"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

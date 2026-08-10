@@ -1,0 +1,90 @@
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+import yaml
+
+from .common import load_yaml
+
+
+def run_module(module: str, *arguments: object) -> None:
+    command = [sys.executable, "-m", module, *(str(value) for value in arguments)]
+    subprocess.run(command, check=True)
+
+
+def absolute_from(config_path: Path, value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else (config_path.parent / path).resolve()
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Tune, train, and validate YOLOv8")
+    parser.add_argument("--data", default="configs/data.yaml")
+    parser.add_argument("--train-config", default="configs/train.yaml")
+    parser.add_argument("--tune-config", default="configs/tune.yaml")
+    parser.add_argument("--skip-audit", action="store_true")
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    data_path = Path(args.data).resolve()
+    train_path = Path(args.train_config).resolve()
+    tune_path = Path(args.tune_config).resolve()
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    run_root = Path("runs/pipeline").resolve()
+
+    if not args.skip_audit:
+        run_module(
+            "yolo_factory.audit",
+            "--data",
+            data_path,
+            "--output",
+            run_root / run_id / "dataset-audit",
+        )
+
+    tune_config = load_yaml(tune_path)
+    tune_data = absolute_from(tune_path, tune_config["data"])
+    run_module(
+        "yolo_factory.subset",
+        "--data",
+        data_path,
+        "--output",
+        tune_data,
+    )
+    run_module("yolo_factory.tune", "--config", tune_path)
+
+    tune_project = Path(tune_config.get("project", "runs/tune")).resolve()
+    best = load_yaml(tune_project / "best.json")
+    train_config = load_yaml(train_path)
+    train_config["data"] = str(data_path)
+    train_config["project"] = str(run_root / run_id)
+    train_config["name"] = "train"
+    train_config["train"].update(best["parameters"])
+
+    generated_config = run_root / run_id / "resolved-train.yaml"
+    generated_config.parent.mkdir(parents=True, exist_ok=True)
+    generated_config.write_text(
+        yaml.safe_dump(train_config, sort_keys=False), encoding="utf-8"
+    )
+    run_module("yolo_factory.train", "--config", generated_config)
+
+    weights = run_root / run_id / "train" / "weights" / "best.pt"
+    run_module(
+        "yolo_factory.validate",
+        "--weights",
+        weights,
+        "--data",
+        data_path,
+        "--output",
+        run_root / run_id / "validation",
+    )
+    print(f"Pipeline completed: {run_root / run_id}")
+
+
+if __name__ == "__main__":
+    main()

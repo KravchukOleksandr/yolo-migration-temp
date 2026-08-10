@@ -1,6 +1,11 @@
-.PHONY: setup download audit subset tune train validate pipeline test lint
+.DEFAULT_GOAL := start
+
+.PHONY: start setup download audit subset tune train validate pipeline test lint
 
 PYTHON ?= python3
+
+start:
+	bash scripts/start_pipeline.sh
 
 setup:
 	$(PYTHON) -m pip install -e '.[dev,tune]'
@@ -21,7 +26,7 @@ train:
 	yolo-train --config configs/train.yaml
 
 validate:
-	yolo-validate --weights runs/train/yolov8s/weights/best.pt
+	yolo-validate --weights runs/train/yolov8n/weights/best.pt
 
 pipeline:
 	yolo-pipeline

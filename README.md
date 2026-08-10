@@ -4,6 +4,8 @@ A compact training repository for `yolov8n`, `yolov8s`, and `yolov8m`. It is
 designed for a 16 GB NVIDIA T4, flat Azure Blob containers, mixed source image
 sizes, and inference at both 640 and 1280 pixels.
 
+The default model is `yolov8n`, optimized for fast iteration on a T4.
+
 ## 1. Expected Azure data
 
 Use one container for training and one for validation. Both containers may be
@@ -112,12 +114,12 @@ weights/
 ```
 
 Only the selected model is required. The default configuration uses
-`weights/yolov8s.pt`. Weight files are ignored by Git.
+`weights/yolov8n.pt`. Weight files are ignored by Git.
 
 Verify the file before starting a long run:
 
 ```bash
-ls -lh weights/yolov8s.pt
+ls -lh weights/yolov8n.pt
 ```
 
 If the selected file is missing, training stops with a clear error and does not
@@ -146,8 +148,8 @@ intentionally represent background images.
 
 ## 6. Train a baseline
 
-The default configuration trains `yolov8s` at a base size of 1024 with
-multi-scale augmentation. Batch size is selected automatically for the GPU.
+The default configuration trains `yolov8n` at a base size of 1024 with
+multi-scale augmentation and an explicit batch size of 12 for a 16 GB T4.
 
 ```bash
 make train
@@ -160,15 +162,15 @@ yolo-train --config configs/train.yaml --model n
 yolo-train --config configs/train.yaml --model m
 ```
 
-Start with `yolov8s`. Use `yolov8n` as the speed baseline and test `yolov8m`
-only if its accuracy improvement justifies its memory and latency cost.
+Start with `yolov8n` for fast iteration. Test `yolov8s` or `yolov8m` only if
+their accuracy improvement justifies the additional training and inference cost.
 
 Resume an interrupted run:
 
 ```bash
 yolo-train \
   --config configs/train.yaml \
-  --resume runs/train/yolov8s/weights/last.pt
+  --resume runs/train/yolov8n/weights/last.pt
 ```
 
 Training settings are stored in `configs/train.yaml`. Ultralytics saves losses,
@@ -200,14 +202,42 @@ Run Optuna tuning:
 make tune
 ```
 
-The default search runs 20 trials of 30 epochs at 960 pixels. It tunes learning
+The default fast search runs 8 trials of 15 epochs at 960 pixels. It tunes learning
 rate, weight decay, mosaic, scale, translation, and mixup. Edit
 `configs/tune.yaml` to change the trial count, epochs, model, or image size.
 The best parameters are saved to `runs/tune/best.json`.
 
 ## 8. Tune, train, and validate with one command
 
-After the dataset has been downloaded, run the complete pipeline:
+After the dataset has been downloaded and audited, start the complete pipeline
+in the background:
+
+```bash
+make
+```
+
+`make start` is equivalent. The launcher uses `nohup`, so the process continues
+after closing the terminal or disconnecting SSH. It prints the PID and log path:
+
+```text
+Pipeline started in the background.
+PID: 12345
+Log: runs/launcher/20260101-120000.log
+```
+
+Follow progress with the printed path:
+
+```bash
+tail -f runs/launcher/20260101-120000.log
+```
+
+Check whether the process is still running:
+
+```bash
+ps -p 12345 -o pid,etime,cmd
+```
+
+To run in the foreground instead, use:
 
 ```bash
 make pipeline
@@ -215,12 +245,11 @@ make pipeline
 
 This command performs the following steps automatically:
 
-1. Audits the full train and validation datasets.
-2. Creates deterministic tuning subsets.
-3. Runs Optuna hyperparameter search.
-4. Applies the best parameters to the full training configuration.
-5. Trains the selected model on the full dataset.
-6. Validates `best.pt` at 640, 960, and 1280 pixels.
+1. Creates deterministic tuning subsets.
+2. Runs Optuna hyperparameter search.
+3. Applies the best parameters to the full training configuration.
+4. Trains the selected model on the full dataset.
+5. Validates `best.pt` at 640, 960, and 1280 pixels.
 
 Each execution creates an isolated timestamped directory:
 
@@ -245,8 +274,7 @@ Skip the repeated audit when the dataset has already passed it:
 yolo-pipeline --skip-audit
 ```
 
-The pipeline may take a long time with the default 20 tuning trials. For an
-initial smoke test, set `trials: 2`, `epochs: 3` in `configs/tune.yaml` and
+For an initial smoke test, set `trials: 2`, `epochs: 3` in `configs/tune.yaml` and
 temporarily reduce `epochs` in `configs/train.yaml`.
 
 ## 9. Validate an existing checkpoint
@@ -255,7 +283,7 @@ Validate any checkpoint at all deployment resolutions:
 
 ```bash
 yolo-validate \
-  --weights runs/train/yolov8s/weights/best.pt \
+  --weights runs/train/yolov8n/weights/best.pt \
   --imgsz 640 960 1280
 ```
 

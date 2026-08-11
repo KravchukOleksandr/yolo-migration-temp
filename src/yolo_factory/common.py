@@ -39,7 +39,16 @@ def materialize_dataset_config(config_path: str | Path) -> Path:
     config["path"] = str(root)
     target = root / ".yolo-data.yaml"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    content = yaml.safe_dump(config, sort_keys=False)
+    changed = not target.exists() or target.read_text(encoding="utf-8") != content
+    if changed:
+        for split in ("train", "val"):
+            split_path = Path(config[split])
+            if not split_path.is_absolute():
+                split_path = root / split_path
+            if split_path.is_dir():
+                (split_path.parent / "labels.cache").unlink(missing_ok=True)
+    target.write_text(content, encoding="utf-8")
     return target
 
 

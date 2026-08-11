@@ -26,7 +26,7 @@ train:
 	yolo-train --config configs/train.yaml
 
 validate:
-	yolo-validate --weights runs/train/yolov8n/weights/best.pt
+	yolo-validate --weights runs/train/yolov8s/weights/best.pt
 
 pipeline:
 	yolo-pipeline

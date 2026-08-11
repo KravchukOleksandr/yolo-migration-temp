@@ -1,4 +1,4 @@
-model: n
+model: s
 weights_dir: weights
 data: data.yaml
 project: runs/train
@@ -6,7 +6,7 @@ name: null
 train:
   imgsz: 1024
   multi_scale: 0.25
-  batch: 12
+  batch: 6
   epochs: 100
   patience: 20
   optimizer: AdamW
@@ -19,5 +19,6 @@ train:
   workers: 8
   seed: 42
   deterministic: false
-  single_cls: true
+  single_cls: false
+  classes: [0, 2]
   plots: true

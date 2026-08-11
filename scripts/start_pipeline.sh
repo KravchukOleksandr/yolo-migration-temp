@@ -7,7 +7,7 @@ log_file="${log_dir}/${run_id}.log"
 pid_file="${log_dir}/${run_id}.pid"
 
 mkdir -p "${log_dir}"
-nohup python3 -m yolo_factory.pipeline --skip-audit \
+nohup python3 -m yolo_factory.pipeline --skip-audit "$@" \
     >"${log_file}" 2>&1 </dev/null &
 pipeline_pid=$!
 printf '%s\n' "${pipeline_pid}" >"${pid_file}"

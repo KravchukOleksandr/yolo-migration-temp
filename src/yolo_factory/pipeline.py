@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-from .common import load_yaml
+from .common import load_yaml, materialize_dataset_config
 
 
 def run_module(module: str, *arguments: object) -> None:
@@ -37,6 +37,7 @@ def main() -> None:
     tune_path = Path(args.tune_config).resolve()
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     run_root = Path("runs/pipeline").resolve()
+    materialize_dataset_config(data_path)
 
     if not args.skip_audit:
         run_module(
@@ -74,15 +75,18 @@ def main() -> None:
     run_module("yolo_factory.train", "--config", generated_config)
 
     weights = run_root / run_id / "train" / "weights" / "best.pt"
-    run_module(
-        "yolo_factory.validate",
+    validation_arguments: list[object] = [
         "--weights",
         weights,
         "--data",
         data_path,
         "--output",
         run_root / run_id / "validation",
-    )
+    ]
+    selected_classes = train_config["train"].get("classes")
+    if selected_classes:
+        validation_arguments.extend(["--classes", *selected_classes])
+    run_module("yolo_factory.validate", *validation_arguments)
     print(f"Pipeline completed: {run_root / run_id}")
 
 

@@ -64,7 +64,10 @@ def main() -> None:
             gc.collect()
             torch.cuda.empty_cache()
 
-    study = optuna.create_study(direction="maximize")
+    sampler = optuna.samplers.TPESampler(
+        seed=config.get("seed", 42), n_startup_trials=3
+    )
+    study = optuna.create_study(direction="maximize", sampler=sampler)
     study.optimize(objective, n_trials=config.get("trials", 20))
     dump_json(
         {"value": study.best_value, "parameters": study.best_params},

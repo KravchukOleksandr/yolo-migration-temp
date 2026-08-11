@@ -214,6 +214,50 @@ The production candidate is:
 runs/pipeline/<timestamp>/train/weights/best.pt
 ```
 
+## Validate another trained model
+
+Use `yolo-validate` to evaluate any trained YOLO checkpoint without running
+tuning or training:
+
+```bash
+yolo-validate \
+  --weights /path/to/model/best.pt \
+  --data configs/data.yaml \
+  --imgsz 640 960 1280 \
+  --output runs/validation/other-model
+```
+
+Arguments:
+
+- `--weights` — path to the trained `.pt` checkpoint;
+- `--data` — dataset configuration containing the validation set path;
+- `--imgsz` — one or more inference resolutions to test;
+- `--output` — directory for metrics, plots, predictions, and the summary.
+
+The example validates the same checkpoint three times and creates:
+
+```text
+runs/validation/other-model/
+├── 640/
+├── 960/
+├── 1280/
+└── summary.json
+```
+
+Use a single value when only one deployment resolution is required:
+
+```bash
+yolo-validate \
+  --weights /path/to/model/best.pt \
+  --data configs/data.yaml \
+  --imgsz 1280 \
+  --output runs/validation/other-model-1280
+```
+
+Use a trained `best.pt` or `last.pt` checkpoint. A base COCO checkpoint may
+have a different number of classes and is not directly comparable with the
+fine-tuned one-class person detector.
+
 ## Default speed settings
 
 The defaults target fast iteration on a T4 16 GB:

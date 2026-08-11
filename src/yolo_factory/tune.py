@@ -31,6 +31,7 @@ def main() -> None:
     if not data_path.is_absolute():
         data_path = config_path.parent / data_path
     data = materialize_dataset_config(data_path)
+    project = Path(config.get("project", "runs/tune")).resolve()
 
     def objective(trial: optuna.Trial) -> float:
         parameters = {
@@ -51,7 +52,7 @@ def main() -> None:
             "cos_lr": True,
             "single_cls": config.get("single_cls", False),
             "classes": config.get("classes"),
-            "project": config.get("project", "runs/tune"),
+            "project": str(project),
             "name": f"trial-{trial.number:03d}",
             "plots": False,
         }
@@ -72,7 +73,7 @@ def main() -> None:
     study.optimize(objective, n_trials=config.get("trials", 20))
     dump_json(
         {"value": study.best_value, "parameters": study.best_params},
-        f"{config.get('project', 'runs/tune')}/best.json",
+        project / "best.json",
     )
 
 

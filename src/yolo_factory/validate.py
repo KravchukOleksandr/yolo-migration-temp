@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     model = YOLO(args.weights)
-    output = Path(args.output)
+    output = Path(args.output).resolve()
     data = materialize_dataset_config(args.data)
     summary: dict[str, object] = {}
     for image_size in args.imgsz:

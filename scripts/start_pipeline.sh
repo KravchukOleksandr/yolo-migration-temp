@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-run_id="$(date -u +%Y%m%d-%H%M%S)"
-log_dir="runs/launcher"
-log_file="${log_dir}/${run_id}.log"
-pid_file="${log_dir}/${run_id}.pid"
+run_id="$(date -u +%Y%m%d-%H%M%S)-$$"
+run_dir="runs/experiments/${run_id}"
+log_file="${run_dir}/pipeline.log"
+pid_file="${run_dir}/pipeline.pid"
 
-mkdir -p "${log_dir}"
-nohup python3 -m yolo_factory.pipeline --skip-audit "$@" \
+mkdir -p "${run_dir}"
+nohup setsid python3 -m yolo_factory.pipeline --skip-audit --run-id "${run_id}" "$@" \
     >"${log_file}" 2>&1 </dev/null &
 pipeline_pid=$!
 printf '%s\n' "${pipeline_pid}" >"${pid_file}"

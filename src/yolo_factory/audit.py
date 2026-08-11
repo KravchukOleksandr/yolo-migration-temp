@@ -83,7 +83,7 @@ def scan(image_root: Path, csv_path: Path) -> dict[str, object]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Audit a YOLO detection dataset")
     parser.add_argument("--data", default="configs/data.yaml")
-    parser.add_argument("--output", default="runs/dataset-audit")
+    parser.add_argument("--output", default="runs/audit")
     return parser
 
 

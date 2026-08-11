@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import platform
 import subprocess
+from hashlib import sha1
 from pathlib import Path
 from typing import Any
 
@@ -35,9 +36,13 @@ def resolve_dataset_paths(config_path: str | Path) -> tuple[Path, dict[str, Any]
 
 
 def materialize_dataset_config(config_path: str | Path) -> Path:
+    config_path = Path(config_path).resolve()
     root, config = resolve_dataset_paths(config_path)
     config["path"] = str(root)
-    target = root / ".yolo-data.yaml"
+    digest = sha1(str(config_path).encode()).hexdigest()[:10]
+    target = Path("runs/runtime/datasets").resolve() / (
+        f"{config_path.stem}-{digest}.yaml"
+    )
     target.parent.mkdir(parents=True, exist_ok=True)
     content = yaml.safe_dump(config, sort_keys=False)
     changed = not target.exists() or target.read_text(encoding="utf-8") != content
@@ -49,6 +54,7 @@ def materialize_dataset_config(config_path: str | Path) -> Path:
             if split_path.is_dir():
                 (split_path.parent / "labels.cache").unlink(missing_ok=True)
     target.write_text(content, encoding="utf-8")
+    (root / ".yolo-data.yaml").unlink(missing_ok=True)
     return target
 
 

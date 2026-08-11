@@ -125,7 +125,7 @@ make audit
 Progress is printed every 1,000 images. The report is saved under:
 
 ```text
-runs/dataset-audit/
+runs/audit/
 ├── summary.json
 ├── train.csv
 └── val.csv
@@ -149,8 +149,8 @@ similar to:
 ```text
 Pipeline started in the background.
 PID: 12345
-Log: runs/launcher/20260810-120000.log
-Follow: tail -f runs/launcher/20260810-120000.log
+Log: runs/experiments/20260810-120000/pipeline.log
+Follow: tail -f runs/experiments/20260810-120000/pipeline.log
 ```
 
 You may now close the terminal or disconnect SSH. Do not stop or deallocate the
@@ -161,7 +161,7 @@ Azure VM.
 Use the exact log path printed by the launcher:
 
 ```bash
-tail -f runs/launcher/20260810-120000.log
+tail -f runs/experiments/20260810-120000/pipeline.log
 ```
 
 Press `Ctrl+C` to stop following the log. This does not stop training.
@@ -178,35 +178,67 @@ Monitor GPU memory and utilization in another SSH session:
 watch -n 2 nvidia-smi
 ```
 
-## 8. Find results
+## 8. Stop all training and validation processes
 
-Every pipeline execution receives a UTC timestamp:
+Stop every YOLO Factory pipeline, tuning trial, training run, and validation
+started by this repository:
 
-```text
-runs/pipeline/<timestamp>/
-├── resolved-train.yaml
-├── train/
-│   ├── results.csv
-│   ├── results.png
-│   ├── confusion_matrix.png
-│   └── weights/
-│       ├── best.pt
-│       └── last.pt
-└── validation/
-    ├── 640/
-    ├── 960/
-    ├── 1280/
-    └── summary.json
+```bash
+make stop
 ```
 
-Hyperparameter trials and the selected parameters are stored separately:
+The command first sends `SIGTERM` to allow a clean shutdown. After three
+seconds, it force-stops any remaining process group with `SIGKILL`.
+
+An interrupted training run normally keeps the most recently written
+`last.pt`, but the current epoch may be incomplete. An interrupted Optuna study
+does not write `best.json` until the study finishes, so its in-memory progress
+is lost.
+
+## 9. Find results
+
+All outputs follow one fixed layout:
 
 ```text
-runs/tune/
-├── trial-000/
-├── trial-001/
-├── ...
-└── best.json
+runs/
+├── LATEST.txt
+├── audit/
+│   ├── summary.json
+│   ├── train.csv
+│   └── val.csv
+├── experiments/
+│   └── <timestamp>/
+│       ├── pipeline.log
+│       ├── pipeline.pid
+│       ├── resolved-tune.yaml
+│       ├── resolved-train.yaml
+│       ├── tune/
+│       │   ├── trial-000/
+│       │   ├── trial-001/
+│       │   └── best.json
+│       ├── train/
+│       │   ├── results.csv
+│       │   ├── results.png
+│       │   └── weights/
+│       │       ├── best.pt
+│       │       └── last.pt
+│       └── validation/
+│           ├── 640/
+│           ├── 960/
+│           ├── 1280/
+│           └── summary.json
+├── validation/
+│   └── <standalone-name>/
+└── runtime/
+    ├── datasets/
+    └── .manifests/
+```
+
+`runs/LATEST.txt` always contains the absolute path to the newest pipeline
+directory. Print it with:
+
+```bash
+cat runs/LATEST.txt
 ```
 
 Generated tuning manifests and the temporary dataset YAML are stored under
@@ -215,7 +247,7 @@ Generated tuning manifests and the temporary dataset YAML are stored under
 The production candidate is:
 
 ```text
-runs/pipeline/<timestamp>/train/weights/best.pt
+runs/experiments/<timestamp>/train/weights/best.pt
 ```
 
 ## Validate another trained model

@@ -38,7 +38,7 @@ def main() -> None:
     config = load_yaml(config_path)
     size = args.model or config["model"]
     name = args.name or config.get("name") or f"yolov8{size}"
-    project = Path(config.get("project", "runs/train"))
+    project = Path(config.get("project", "runs/train")).resolve()
     parameters = dict(config.get("train", {}))
     data_path = Path(config["data"])
     if not data_path.is_absolute():

@@ -1,11 +1,14 @@
 .DEFAULT_GOAL := start
 
-.PHONY: start setup download audit subset tune train validate pipeline test lint
+.PHONY: start stop setup download audit subset tune train validate pipeline test lint
 
 PYTHON ?= python3
 
 start:
 	bash scripts/start_pipeline.sh
+
+stop:
+	bash scripts/stop_all.sh
 
 setup:
 	$(PYTHON) -m pip install -e '.[dev,tune]'
@@ -14,7 +17,7 @@ download:
 	yolo-download
 
 audit:
-	yolo-audit --data configs/data.yaml --output runs/dataset-audit
+	yolo-audit --data configs/data.yaml --output runs/audit
 
 subset:
 	yolo-subset --data configs/data.yaml --output runs/runtime/data_tune.yaml

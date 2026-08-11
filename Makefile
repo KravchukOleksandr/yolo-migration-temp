@@ -17,7 +17,7 @@ audit:
 	yolo-audit --data configs/data.yaml --output runs/dataset-audit
 
 subset:
-	yolo-subset --data configs/data.yaml --output configs/data_tune.yaml
+	yolo-subset --data configs/data.yaml --output runs/runtime/data_tune.yaml
 
 tune:
 	yolo-tune --config configs/tune.yaml

@@ -7,3 +7,6 @@ __pycache__/
 data/
 runs/
 weights/*.pt
+configs/.manifests/
+configs/.yolo-data.yaml
+configs/data_tune.yaml

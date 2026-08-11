@@ -209,6 +209,9 @@ runs/tune/
 └── best.json
 ```
 
+Generated tuning manifests and the temporary dataset YAML are stored under
+`runs/runtime/`. Runtime files are ignored by Git and never modify `configs/`.
+
 The production candidate is:
 
 ```text

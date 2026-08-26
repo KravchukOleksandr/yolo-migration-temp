@@ -37,3 +37,10 @@ def test_local_model_path(tmp_path: Path) -> None:
     weights.touch()
 
     assert model_path("s", tmp_path) == weights
+
+
+def test_local_yolo26_model_path(tmp_path: Path) -> None:
+    weights = tmp_path / "yolo26s.pt"
+    weights.touch()
+
+    assert model_path("s", tmp_path, "yolo26") == weights

@@ -1,8 +1,8 @@
-# YOLOv8 Safety Detection
+# YOLO Safety Detection
 
-A compact YOLOv8 training pipeline for safety detection on an Azure VM with an
-NVIDIA T4 16 GB. The default model is `yolov8s` trained for `person` and
-`no-helmet`.
+A compact Ultralytics training pipeline for safety detection on an Azure VM
+with an NVIDIA T4 16 GB. It supports the existing `YOLOv8s` workflow and a
+separate `YOLO26s` workflow. Both train `person` and `no-helmet`.
 
 The pipeline uses local model weights and runs in the background. You may close
 the terminal or disconnect SSH after it starts. The process continues while the
@@ -15,7 +15,7 @@ One background command performs the complete experiment:
 1. Creates deterministic train and validation tuning subsets.
 2. Runs Optuna hyperparameter tuning.
 3. Applies the best parameters to the full training configuration.
-4. Trains YOLOv8s on the complete training dataset.
+4. Trains the selected model on the complete training dataset.
 5. Validates `best.pt` at 640, 960, and 1280 pixels.
 6. Saves checkpoints, metrics, plots, configuration, and console logs.
 
@@ -40,17 +40,19 @@ Do not store proxy credentials in the repository.
 
 ## 2. Add local model weights
 
-The pipeline does not download model weights. Copy the small checkpoint to this
-exact path:
+The pipeline does not download model weights. Copy the checkpoint for the mode
+you want to run:
 
 ```text
 weights/yolov8s.pt
+weights/yolo26s.pt
 ```
 
 Verify it before continuing:
 
 ```bash
 ls -lh weights/yolov8s.pt
+ls -lh weights/yolo26s.pt
 ```
 
 The `.pt` files under `weights/` are ignored by Git.
@@ -137,11 +139,21 @@ pipeline.
 
 ## 6. Start the complete pipeline
 
-Run this single command:
+Start the existing YOLOv8s pipeline:
 
 ```bash
 make
 ```
+
+Start the YOLO26s pipeline:
+
+```bash
+make yolo26
+```
+
+Each command starts its own detached tuning, training, and validation pipeline.
+The YOLOv8 experiment ID starts with `yolov8-`; the YOLO26 experiment ID starts
+with `yolo26-`.
 
 The command starts the pipeline with `nohup` and immediately prints information
 similar to:
@@ -149,8 +161,8 @@ similar to:
 ```text
 Pipeline started in the background.
 PID: 12345
-Log: runs/experiments/20260810-120000/pipeline.log
-Follow: tail -f runs/experiments/20260810-120000/pipeline.log
+Log: runs/experiments/yolo26-20260810-120000-12345/pipeline.log
+Follow: tail -f runs/experiments/yolo26-20260810-120000-12345/pipeline.log
 ```
 
 You may now close the terminal or disconnect SSH. Do not stop or deallocate the
@@ -161,7 +173,7 @@ Azure VM.
 Use the exact log path printed by the launcher:
 
 ```bash
-tail -f runs/experiments/20260810-120000/pipeline.log
+tail -f "$(cat runs/LATEST.txt)/pipeline.log"
 ```
 
 Press `Ctrl+C` to stop following the log. This does not stop training.
@@ -207,7 +219,7 @@ runs/
 │   ├── train.csv
 │   └── val.csv
 ├── experiments/
-│   └── <timestamp>/
+│   └── <experiment-id>/
 │       ├── pipeline.log
 │       ├── pipeline.pid
 │       ├── resolved-tune.yaml
@@ -247,7 +259,7 @@ Generated tuning manifests and the temporary dataset YAML are stored under
 The production candidate is:
 
 ```text
-runs/experiments/<timestamp>/train/weights/best.pt
+runs/experiments/<experiment-id>/train/weights/best.pt
 ```
 
 ## Validate another trained model
@@ -341,7 +353,7 @@ automatically.
 
 Keep `configs/train.yaml` and `configs/tune.yaml` synchronized:
 
-1. Set the same `model` (`n`, `s`, or `m`) in both files.
+1. Set the same `family` and `model` size in both files.
 2. Set the same `classes` list in both files.
 3. Keep `single_cls: false` when class IDs must remain distinct.
 4. Add every source class ID to `configs/data.yaml`.
@@ -354,6 +366,7 @@ Suggested T4 starting batches:
 YOLOv8n: train 12, tune 16
 YOLOv8s: train 6, tune 8
 YOLOv8m: train 2, tune 4
+YOLO26s: train 6, tune 8
 ```
 
 Then start the same detached pipeline:
@@ -371,6 +384,47 @@ bash scripts/start_pipeline.sh \
   --tune-config configs/tune_custom.yaml
 ```
 
+## YOLO26 mode
+
+YOLO26 is configured separately so its recipe does not overwrite or reuse the
+YOLOv8 hyperparameters:
+
+```text
+configs/train_yolo26.yaml
+configs/tune_yolo26.yaml
+weights/yolo26s.pt
+```
+
+Start it with:
+
+```bash
+make yolo26
+```
+
+YOLO26 requires `ultralytics>=8.4.26`. Running the installation command from
+section 1 upgrades an older environment through the configured pip proxy.
+
+The YOLO26 tuning profile uses `MuSGD` and a declarative search space based on
+the [official YOLO26s fine-tuning recipe](https://docs.ultralytics.com/guides/yolo26-training-recipe/).
+It searches:
+
+- initial and final learning-rate factors;
+- momentum and weight decay;
+- warmup duration;
+- mosaic, mixup, scale, and translation augmentation.
+
+YOLO26-specific loss gains and the remaining augmentation defaults stay fixed
+at the official YOLO26s recipe values. The search runs 12 trials: the first 4
+are exploratory and the remaining trials use TPE observations.
+
+The tuning objective is class `2` (`no-helmet`) mAP50-95. Aggregate mAP50-95 is
+also saved in each Optuna trial and `tune/best.json`. The final model is still
+trained and validated for classes `[0, 2]`.
+
+YOLO26 uses its native end-to-end one-to-one head by default, so normal
+validation and inference are NMS-free. The output folders and plots are the
+same as for YOLOv8.
+
 ## Default speed settings
 
 The defaults target fast iteration on a T4 16 GB:
@@ -382,7 +436,7 @@ multi-scale range: approximately 768-1280
 training classes: person (0), no-helmet (2)
 training batch: 6
 training epochs: 100
-early stopping patience: 20
+early stopping patience: 10
 tuning trials: 8
 tuning epochs per trial: 15
 tuning batch: 8
@@ -396,4 +450,6 @@ Configuration files:
 - `configs/data.yaml` — local dataset paths and class names;
 - `configs/train.yaml` — full training settings;
 - `configs/tune.yaml` — tuning budget and model settings;
+- `configs/train_yolo26.yaml` — full YOLO26s training settings;
+- `configs/tune_yolo26.yaml` — YOLO26-specific tuning profile;
 - `.env` — private Azure credentials, never committed.

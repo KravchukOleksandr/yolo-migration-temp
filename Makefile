@@ -1,11 +1,16 @@
 .DEFAULT_GOAL := start
 
-.PHONY: start stop setup download audit subset tune train validate pipeline test lint
+.PHONY: start yolo26 stop setup download audit subset tune train validate pipeline test lint
 
 PYTHON ?= python3
 
 start:
 	bash scripts/start_pipeline.sh
+
+yolo26:
+	RUN_PREFIX=yolo26 bash scripts/start_pipeline.sh \
+		--train-config configs/train_yolo26.yaml \
+		--tune-config configs/tune_yolo26.yaml
 
 stop:
 	bash scripts/stop_all.sh

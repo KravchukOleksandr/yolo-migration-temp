@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-run_id="$(date -u +%Y%m%d-%H%M%S)-$$"
+run_prefix="${RUN_PREFIX:-yolov8}"
+run_id="${run_prefix}-$(date -u +%Y%m%d-%H%M%S)-$$"
 run_dir="runs/experiments/${run_id}"
 log_file="${run_dir}/pipeline.log"
 pid_file="${run_dir}/pipeline.pid"

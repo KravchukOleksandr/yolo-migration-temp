@@ -22,7 +22,7 @@ def absolute_from(config_path: Path, value: str) -> Path:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Tune, train, and validate YOLOv8")
+    parser = argparse.ArgumentParser(description="Tune, train, and validate YOLO")
     parser.add_argument("--data", default="configs/data.yaml")
     parser.add_argument("--train-config", default="configs/train.yaml")
     parser.add_argument("--tune-config", default="configs/tune.yaml")
@@ -55,6 +55,21 @@ def main() -> None:
         )
 
     tune_config = load_yaml(tune_path)
+    train_config = load_yaml(train_path)
+    train_classes = train_config.get("train", {}).get("classes")
+    train_family = train_config.get("family", "yolov8")
+    tune_family = tune_config.get("family", "yolov8")
+    compatibility = {
+        "family": (train_family, tune_family),
+        "model": (train_config.get("model"), tune_config.get("model")),
+        "classes": (train_classes, tune_config.get("classes")),
+    }
+    mismatches = [
+        name for name, values in compatibility.items() if values[0] != values[1]
+    ]
+    if mismatches:
+        names = ", ".join(mismatches)
+        raise ValueError(f"Train and tune configurations disagree on: {names}")
     tune_data = absolute_from(tune_path, tune_config["data"])
     run_module(
         "yolo_factory.subset",
@@ -73,7 +88,6 @@ def main() -> None:
 
     tune_project = experiment / "tune"
     best = load_yaml(tune_project / "best.json")
-    train_config = load_yaml(train_path)
     train_config["data"] = str(data_path)
     train_config["project"] = str(experiment)
     train_config["name"] = "train"

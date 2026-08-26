@@ -7,24 +7,32 @@ from ultralytics import YOLO
 
 from .common import dump_json, load_yaml, materialize_dataset_config, run_metadata
 
-MODEL_SIZES = {"n", "s", "m"}
+MODEL_FAMILIES = {"yolov8", "yolo26"}
+MODEL_SIZES = {"n", "s", "m", "l", "x"}
 
 
-def model_path(size: str, weights_dir: str | Path = "weights") -> Path:
+def model_path(
+    size: str,
+    weights_dir: str | Path = "weights",
+    family: str = "yolov8",
+) -> Path:
+    if family not in MODEL_FAMILIES:
+        raise ValueError(f"Model family must be one of {sorted(MODEL_FAMILIES)}")
     if size not in MODEL_SIZES:
         raise ValueError(f"Model size must be one of {sorted(MODEL_SIZES)}")
-    path = Path(weights_dir) / f"yolov8{size}.pt"
+    filename = f"{family}{size}.pt"
+    path = Path(weights_dir) / filename
     if not path.is_absolute():
         path = path.resolve()
     if not path.is_file():
         raise FileNotFoundError(
-            f"Missing local weights: {path}. Place yolov8{size}.pt there first."
+            f"Missing local weights: {path}. Place {filename} there first."
         )
     return path
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Train a YOLOv8 detector")
+    parser = argparse.ArgumentParser(description="Train an Ultralytics detector")
     parser.add_argument("--config", default="configs/train.yaml")
     parser.add_argument("--model", choices=sorted(MODEL_SIZES))
     parser.add_argument("--name")
@@ -37,7 +45,8 @@ def main() -> None:
     config_path = Path(args.config).resolve()
     config = load_yaml(config_path)
     size = args.model or config["model"]
-    name = args.name or config.get("name") or f"yolov8{size}"
+    family = config.get("family", "yolov8")
+    name = args.name or config.get("name") or f"{family}{size}"
     project = Path(config.get("project", "runs/train")).resolve()
     parameters = dict(config.get("train", {}))
     data_path = Path(config["data"])
@@ -45,7 +54,11 @@ def main() -> None:
         data_path = config_path.parent / data_path
     data = materialize_dataset_config(data_path)
     parameters.update(data=str(data), project=str(project), name=name)
-    weights = model_path(size, config.get("weights_dir", "weights"))
+    weights = model_path(
+        size,
+        config.get("weights_dir", "weights"),
+        family,
+    )
     if args.resume:
         weights = Path(args.resume).resolve()
         parameters["resume"] = True

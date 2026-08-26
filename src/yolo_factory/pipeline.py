@@ -57,12 +57,16 @@ def main() -> None:
     tune_config = load_yaml(tune_path)
     train_config = load_yaml(train_path)
     train_classes = train_config.get("train", {}).get("classes")
+    train_single_class = train_config.get("train", {}).get(
+        "single_cls", False
+    )
     train_family = train_config.get("family", "yolov8")
     tune_family = tune_config.get("family", "yolov8")
     compatibility = {
         "family": (train_family, tune_family),
         "model": (train_config.get("model"), tune_config.get("model")),
         "classes": (train_classes, tune_config.get("classes")),
+        "single_cls": (train_single_class, tune_config.get("single_cls", False)),
     }
     mismatches = [
         name for name, values in compatibility.items() if values[0] != values[1]
@@ -70,6 +74,11 @@ def main() -> None:
     if mismatches:
         names = ", ".join(mismatches)
         raise ValueError(f"Train and tune configurations disagree on: {names}")
+    objective_class = tune_config.get("objective_class")
+    if objective_class is not None and (
+        not train_classes or objective_class not in train_classes
+    ):
+        raise ValueError("The tuning objective class must be selected for training")
     tune_data = absolute_from(tune_path, tune_config["data"])
     run_module(
         "yolo_factory.subset",

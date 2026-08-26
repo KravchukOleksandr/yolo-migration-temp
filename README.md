@@ -351,7 +351,9 @@ automatically.
 
 ## Run another model or class mode
 
-Keep `configs/train.yaml` and `configs/tune.yaml` synchronized:
+Keep the matching train and tune configuration pair synchronized. Use
+`train.yaml` and `tune.yaml` for YOLOv8, or `train_yolo26.yaml` and
+`tune_yolo26.yaml` for YOLO26:
 
 1. Set the same `family` and `model` size in both files.
 2. Set the same `classes` list in both files.
@@ -369,10 +371,11 @@ YOLOv8m: train 2, tune 4
 YOLO26s: train 6, tune 8
 ```
 
-Then start the same detached pipeline:
+Then start the matching detached pipeline:
 
 ```bash
-make
+make          # YOLOv8
+make yolo26   # YOLO26
 ```
 
 For separate custom config files, pass them to the detached launcher:
@@ -424,6 +427,50 @@ trained and validated for classes `[0, 2]`.
 YOLO26 uses its native end-to-end one-to-one head by default, so normal
 validation and inference are NMS-free. The output folders and plots are the
 same as for YOLOv8.
+
+### YOLO26 configuration files
+
+`configs/train_yolo26.yaml` controls the final training on the complete train
+dataset. It contains the image size, batch size, epoch limit, early stopping,
+optimizer, augmentations, and selected classes.
+
+`configs/tune_yolo26.yaml` controls the preliminary Optuna search on the
+10,000-image tuning subset. It contains the number and length of trials, the
+metric to maximize, fixed parameters, and parameter search ranges. When tuning
+finishes, the pipeline copies the best searched values into the final training
+configuration automatically.
+
+The `family`, `model`, `classes`, and `single_cls` values must agree in both
+files. The pipeline checks this before starting an expensive tuning run.
+
+### Train YOLO26s on person only
+
+In `configs/train_yolo26.yaml`, set:
+
+```yaml
+train:
+  single_cls: true
+  classes: [0]
+```
+
+In `configs/tune_yolo26.yaml`, set:
+
+```yaml
+objective_class: 0
+single_cls: true
+classes: [0]
+```
+
+Then run:
+
+```bash
+make yolo26
+```
+
+Only source class `0` (`person`) is used. Classes `1` and `2` are filtered in
+memory; the original label files are not modified. To restore the default
+person and no-helmet mode, set `single_cls: false`, `classes: [0, 2]`, and
+`objective_class: 2` in the corresponding files.
 
 ## Default speed settings
 

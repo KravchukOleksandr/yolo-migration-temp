@@ -222,8 +222,9 @@ runs/
 │   └── <experiment-id>/
 │       ├── pipeline.log
 │       ├── pipeline.pid
-│       ├── resolved-tune.yaml
+│       ├── resolved-tune.yaml       # normal tuning mode
 │       ├── resolved-train.yaml
+│       ├── selected-trial.yaml      # selected-trial mode
 │       ├── tune/
 │       │   ├── trial-000/
 │       │   ├── trial-001/
@@ -427,6 +428,46 @@ trained and validated for classes `[0, 2]`.
 YOLO26 uses its native end-to-end one-to-one head by default, so normal
 validation and inference are NMS-free. The output folders and plots are the
 same as for YOLOv8.
+
+### Train from a selected tuning trial
+
+Use this mode when a particular trial is preferable to the Optuna winner. It
+skips a new tuning search, starts full training from the local `yolo26s.pt`, and
+then runs the standard validation at 640, 960, and 1280:
+
+```bash
+make yolo26-from-trial \
+  TRIAL=runs/experiments/yolo26-<experiment-id>/tune/trial-004
+```
+
+The trial directory or its `args.yaml` file may be passed as `TRIAL`. The
+command runs detached, updates `runs/LATEST.txt`, and writes everything to a
+new `runs/experiments/yolo26-trial-<experiment-id>/` directory. Follow it with:
+
+```bash
+tail -f "$(cat runs/LATEST.txt)/pipeline.log"
+```
+
+The pipeline copies the actual trial values declared in the matching tune
+configuration's `search_space` and `fixed` sections. It deliberately keeps the
+full-training dataset, image size, batch size, epoch limit, and early stopping
+settings from the train configuration. It does not continue from the
+subset-trained trial checkpoint.
+
+To use custom configuration files that produced the selected trial:
+
+```bash
+make yolo26-from-trial \
+  TRIAL=/path/to/trial-004 \
+  TRAIN_CONFIG=configs/train_custom.yaml \
+  TUNE_CONFIG=configs/tune_custom.yaml
+```
+
+Use the tune configuration that created the trial. Before starting, the
+pipeline verifies its model, selected classes, `single_cls` mode, and presence
+of every searched parameter. The exact source and promoted values are saved in
+`selected-trial.yaml`; the effective full configuration is saved in
+`resolved-train.yaml`.
 
 ### YOLO26 configuration files
 

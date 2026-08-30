@@ -1,8 +1,10 @@
 .DEFAULT_GOAL := start
 
-.PHONY: start yolo26 stop setup download audit subset tune train validate pipeline test lint
+.PHONY: start yolo26 yolo26-from-trial stop setup download audit subset tune train validate pipeline test lint
 
 PYTHON ?= python3
+TRAIN_CONFIG ?= configs/train_yolo26.yaml
+TUNE_CONFIG ?= configs/tune_yolo26.yaml
 
 start:
 	bash scripts/start_pipeline.sh
@@ -11,6 +13,13 @@ yolo26:
 	RUN_PREFIX=yolo26 bash scripts/start_pipeline.sh \
 		--train-config configs/train_yolo26.yaml \
 		--tune-config configs/tune_yolo26.yaml
+
+yolo26-from-trial:
+	@test -n "$(TRIAL)" || (echo "Usage: make yolo26-from-trial TRIAL=path/to/trial-004"; exit 2)
+	RUN_PREFIX=yolo26-trial bash scripts/start_pipeline.sh \
+		--train-config "$(TRAIN_CONFIG)" \
+		--tune-config "$(TUNE_CONFIG)" \
+		--use-trial "$(TRIAL)"
 
 stop:
 	bash scripts/stop_all.sh

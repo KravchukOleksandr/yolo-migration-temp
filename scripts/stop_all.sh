@@ -3,7 +3,9 @@ set -euo pipefail
 
 found=false
 
-for pid_file in runs/experiments/*/pipeline.pid; do
+for pid_file in runs/experiments/*/pipeline.pid \
+    runs/verifier/*/pipeline.pid \
+    runs/dataset-preparation/*/pipeline.pid; do
     [[ -f "${pid_file}" ]] || continue
     pipeline_pid="$(<"${pid_file}")"
     [[ "${pipeline_pid}" =~ ^[0-9]+$ ]] || continue
@@ -14,7 +16,7 @@ for pid_file in runs/experiments/*/pipeline.pid; do
     fi
 done
 
-pattern='python[^ ]* -m yolo_factory\.(pipeline|train|tune|validate)'
+pattern='python[^ ]* -m yolo_factory\.(pipeline|train|tune|validate|download|audit|verifier_[a-z_]+)'
 if pgrep -f "${pattern}" >/dev/null; then
     found=true
     pkill -TERM -f "${pattern}" || true
@@ -27,7 +29,9 @@ fi
 
 sleep 3
 
-for pid_file in runs/experiments/*/pipeline.pid; do
+for pid_file in runs/experiments/*/pipeline.pid \
+    runs/verifier/*/pipeline.pid \
+    runs/dataset-preparation/*/pipeline.pid; do
     [[ -f "${pid_file}" ]] || continue
     pipeline_pid="$(<"${pid_file}")"
     [[ "${pipeline_pid}" =~ ^[0-9]+$ ]] || continue
@@ -38,4 +42,4 @@ for pid_file in runs/experiments/*/pipeline.pid; do
 done
 
 pkill -KILL -f "${pattern}" 2>/dev/null || true
-echo "All YOLO Factory training and validation processes were stopped."
+echo "All YOLO Factory dataset, training, and validation processes were stopped."

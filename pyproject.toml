@@ -9,6 +9,7 @@ description = "Compact YOLO training pipeline for industrial safety detection"
 requires-python = ">=3.10,<3.13"
 dependencies = [
     "azure-storage-blob>=12.22",
+    "numpy>=1.26",
     "pillow>=10.0",
     "pyyaml>=6.0",
     "torch>=2.2",
@@ -27,6 +28,11 @@ yolo-subset = "yolo_factory.subset:main"
 yolo-train = "yolo_factory.train:main"
 yolo-tune = "yolo_factory.tune:main"
 yolo-validate = "yolo_factory.validate:main"
+yolo-verifier-pipeline = "yolo_factory.verifier_pipeline:main"
+yolo-verifier-prepare = "yolo_factory.verifier_prepare:main"
+yolo-verifier-train = "yolo_factory.verifier_train:main"
+yolo-verifier-tune = "yolo_factory.verifier_tune:main"
+yolo-verifier-validate = "yolo_factory.verifier_validate:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/yolo_factory"]

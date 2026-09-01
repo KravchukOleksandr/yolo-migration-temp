@@ -1,0 +1,54 @@
+data: data.yaml
+output: ../runs/verifier
+
+prepare:
+  output: ../data/verifier
+  helmet_class: 1
+  no_helmet_class: 2
+  scale: 1.25
+  minimum_scaled_side: 16.0
+  minimum_aspect_ratio: 0.72
+  maximum_aspect_ratio: 1.39
+  opposite_overlap: 0.10
+  same_overlap: 0.25
+
+tune:
+  trials: 200
+  startup_trials: 50
+  seed: 42
+  calibration_seed: 2718
+  calibration_fraction: 0.10
+  split_seed: 1729
+  validation_fraction: 0.20
+  search_space:
+    epochs: {type: int, low: 20, high: 120, step: 5}
+    batch_size: {type: categorical, choices: [64, 128, 192, 256]}
+    lr: {type: float, low: 0.0001, high: 0.005, log: true}
+    minimum_lr_ratio: {type: float, low: 0.001, high: 0.10, log: true}
+    warmup_epochs: {type: float, low: 0.5, high: 8.0}
+    weight_decay: {type: float, low: 0.000001, high: 0.01, log: true}
+    ema_decay: {type: float, low: 0.990, high: 0.9995}
+    label_smoothing: {type: float, low: 0.0, high: 0.05}
+    crop_scale_min: {type: float, low: 0.85, high: 0.98}
+    center_jitter: {type: float, low: 0.0, high: 0.06}
+    photometric_probability: {type: float, low: 0.25, high: 0.75}
+    photometric_strength: {type: float, low: 0.05, high: 0.20}
+
+train:
+  val_batch_size: 256
+  workers: 4
+  device: auto
+  deterministic: true
+  seed: 42
+  grad_clip: 5.0
+  warmup_start_factor: 0.20
+
+cascade:
+  imgsz: [640, 960, 1280]
+  classes: [0, 2]
+  verified_class: 2
+  proposal_confidence: 0.001
+  detector_batch: 8
+  classifier_batch: 256
+  workers: 8
+  device: cuda:0

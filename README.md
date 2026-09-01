@@ -76,7 +76,8 @@ AZURE_VAL_CONTAINER='validation-container-name'
 Keep the full connection string in single quotes because it contains
 semicolons. The `.env` file is ignored by Git and must never be committed.
 
-Load the variables:
+`make dataset` loads `.env` automatically. Load the variables manually only
+when running an individual download command:
 
 ```bash
 set -a
@@ -84,7 +85,7 @@ source .env
 set +a
 ```
 
-## 4. Download the dataset
+## 4. Prepare the dataset
 
 Both Azure containers may be flat. Every image must have a `.txt` label with
 the same stem:
@@ -96,11 +97,24 @@ frame_0002.png
 frame_0002.txt
 ```
 
-Download both containers:
+Download both containers, audit the YOLO dataset, and generate verifier crops
+with one command:
 
 ```bash
-make download
+make dataset
 ```
+
+The stages run sequentially. A failed download or fatal audit error prevents
+crop preparation from starting.
+
+The command runs in the background, so the terminal or SSH session may be
+closed. Follow all three stages with:
+
+```bash
+tail -f "$(cat runs/LATEST_DATASET.txt)/dataset.log"
+```
+
+Wait for `Dataset preparation completed.` before starting training.
 
 The downloader automatically creates:
 
@@ -116,12 +130,25 @@ data/
 
 Existing complete files are skipped when the download is restarted.
 
-## 5. Audit the dataset
+The same command also creates:
 
-Run the audit once after downloading or replacing the dataset:
+```text
+data/verifier/
+├── train/{helmet,no_helmet}/
+├── val/{helmet,no_helmet}/
+├── manifest.csv
+└── summary.json
+```
+
+## 5. Rerun an individual dataset stage
+
+The complete `make dataset` command is the normal path. These targets are
+available when only one stage must be repeated:
 
 ```bash
+make download          # Azure download; environment must already be loaded
 make audit
+make verifier-prepare  # rebuild crops from the local YOLO dataset
 ```
 
 Progress is printed every 1,000 images. The report is saved under:
@@ -192,8 +219,8 @@ watch -n 2 nvidia-smi
 
 ## 8. Stop all training and validation processes
 
-Stop every YOLO Factory pipeline, tuning trial, training run, and validation
-started by this repository:
+Stop every YOLO Factory dataset preparation, tuning trial, training run, and
+validation started by this repository:
 
 ```bash
 make stop
@@ -541,3 +568,148 @@ Configuration files:
 - `configs/train_yolo26.yaml` — full YOLO26s training settings;
 - `configs/tune_yolo26.yaml` — YOLO26-specific tuning profile;
 - `.env` — private Azure credentials, never committed.
+
+## No-helmet verifier experiment
+
+This optional pipeline trains the small random-initialized `HelmetMicroNeXt`
+classifier and evaluates it as a hard veto after an existing YOLO detector.
+It uses only the factory dataset; public datasets are not mixed into this
+baseline experiment.
+
+The source IDs stay unchanged. Class `1` supplies helmet crops, class `2`
+supplies no-helmet crops, and the verifier's internal binary labels are written
+only to its generated manifest. The original images and YOLO labels are never
+modified.
+
+Copy the existing trained detector to the default local path and start the
+complete detached experiment:
+
+```bash
+make dataset
+cp /absolute/path/to/yolo/best.pt weights/detector.pt
+make verifier
+```
+
+The checkpoint is not modified. To keep it elsewhere, override the default:
+
+```bash
+make verifier DETECTOR=/absolute/path/to/yolo/best.pt
+```
+
+The command requires the prepared `data/verifier/manifest.csv`, runs 200
+resumable Optuna trials, trains the final classifier, validates it, and compares
+baseline YOLO with the cascade at 640, 960, and 1280. It does not download or
+rebuild data. You may close the terminal after the launcher returns.
+Follow progress with:
+
+```bash
+tail -f "$(cat runs/LATEST_VERIFIER.txt)/pipeline.log"
+```
+
+Stop YOLO and verifier jobs started by this repository with `make stop`.
+
+After the experiment finishes, repeat baseline/cascade validation for the
+latest verifier with:
+
+```bash
+make verifier-validate
+```
+
+It uses `weights/detector.pt`, the latest `train/last.pt`, and the calibrated
+threshold stored in that checkpoint. Paths can be overridden when needed:
+
+```bash
+make verifier-validate \
+  DETECTOR=/path/to/yolo.pt \
+  VERIFIER_MODEL=/path/to/verifier/last.pt \
+  VERIFIER_OUTPUT=runs/verifier/manual-validation
+```
+
+### Dataset and split policy
+
+Crop preparation follows the fixed experiment rules:
+
+- expand each class `1` or `2` box by `1.25` around its center;
+- reject an expanded side below 16 pixels or any out-of-image crop;
+- accept width/height ratios from `0.72` through `1.39`;
+- reject opposite-class overlap above 10% and same-class union overlap above
+  25% of the crop;
+- round outward only after all checks and store lossless PNG crops.
+
+Generated crops, `manifest.csv`, and rejection counts are stored under
+`data/verifier/`. Training reads the manifest, so unrelated stale files are
+never included.
+
+All boxes from one source image remain in the same internal split. Ten percent
+of source training images are reserved for calibration before tuning. Optuna
+uses a separate fit/tune split inside the remaining training data. The official
+camera-separated `val` set is not used to choose hyperparameters, epochs, or
+the operating threshold.
+
+The final model is the last epoch selected by the tuning trial. Its hard-veto
+threshold is chosen on the held-out calibration split for at least 95%
+no-helmet recall. Classifier metrics are then reported once on the official
+validation crops.
+
+### Cascade logic
+
+The verifier does not multiply or average unrelated confidence values. For a
+YOLO class `2` proposal:
+
+```text
+verifier probability >= calibrated threshold  -> keep original YOLO confidence
+verifier probability <  calibrated threshold  -> remove the proposal
+```
+
+Person detections and unclassifiable boundary crops are left unchanged. Since
+surviving detections keep their original YOLO confidence, Ultralytics computes
+the usual precision, recall, mAP50, mAP50-95, PR curves, confusion matrices,
+and per-class results without a synthetic fused score.
+
+### Configuration and outputs
+
+Edit `configs/verifier.yaml` to change the trial count, searched epoch range,
+optimizer ranges, augmentation ranges, batches, or validation resolutions.
+The default search includes epochs from 20 to 120 and uses FPR at 95% recall as
+its primary objective. Ties prefer higher achieved recall, then ROC-AUC and
+PR-AUC.
+
+The newest experiment path is stored in `runs/LATEST_VERIFIER.txt`:
+
+```text
+runs/verifier/<experiment-id>/
+├── pipeline.log
+├── resolved-config.yaml
+├── tune/
+│   ├── study.db
+│   ├── trials.csv
+│   ├── best.json
+│   └── trials/trial-XXXX/{history.csv,summary.json}
+├── train/
+│   ├── best.pt
+│   ├── last.pt
+│   ├── history.csv
+│   ├── summary.json
+│   └── validation.json
+└── yolo-validation/
+    ├── 640/{baseline,cascade}
+    ├── 960/{baseline,cascade}
+    ├── 1280/{baseline,cascade}
+    └── summary.json
+```
+
+`last.pt` is the deployment candidate because the epoch count itself is tuned.
+`best.pt` is retained only as a diagnostic checkpoint from the calibration
+history. `train/validation.json` contains classifier FPR@R95, the selected
+threshold, ROC-AUC, PR-AUC, accuracy, precision, recall, and F1.
+
+To rerun only cascade validation with an explicit classifier threshold:
+
+```bash
+yolo-verifier-validate \
+  --config configs/verifier.yaml \
+  --detector /absolute/path/to/yolo/best.pt \
+  --verifier /absolute/path/to/verifier/last.pt \
+  --threshold 0.95 \
+  --output runs/verifier/manual-validation
+```

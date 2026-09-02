@@ -62,16 +62,25 @@ def group_holdout_split(
         raise ValueError("Holdout fraction must be between 0 and 0.5")
     fit: list[VerifierSample] = []
     holdout: list[VerifierSample] = []
-    boundary = int(fraction * 10_000)
     for sample in samples:
-        key = f"{seed}:{sample.source_image}".encode()
-        bucket = int(sha1(key).hexdigest()[:8], 16) % 10_000
-        (holdout if bucket < boundary else fit).append(sample)
+        if is_holdout(sample.source_image, fraction, seed):
+            destination = holdout
+        else:
+            destination = fit
+        destination.append(sample)
     for name, group in (("fit", fit), ("holdout", holdout)):
         labels = {sample.label for sample in group}
         if labels != {0, 1}:
             raise ValueError(f"Internal {name} split does not contain both classes")
     return fit, holdout
+
+
+def is_holdout(source_image: str, fraction: float, seed: int) -> bool:
+    if not 0.0 < fraction < 0.5:
+        raise ValueError("Holdout fraction must be between 0 and 0.5")
+    key = f"{seed}:{source_image}".encode()
+    bucket = int(sha1(key).hexdigest()[:8], 16) % 10_000
+    return bucket < int(fraction * 10_000)
 
 
 def tuning_split(

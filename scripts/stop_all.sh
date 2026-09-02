@@ -5,6 +5,7 @@ found=false
 
 for pid_file in runs/experiments/*/pipeline.pid \
     runs/verifier/*/pipeline.pid \
+    runs/verifier-sweeps/*/pipeline.pid \
     runs/dataset-preparation/*/pipeline.pid; do
     [[ -f "${pid_file}" ]] || continue
     pipeline_pid="$(<"${pid_file}")"
@@ -31,6 +32,7 @@ sleep 3
 
 for pid_file in runs/experiments/*/pipeline.pid \
     runs/verifier/*/pipeline.pid \
+    runs/verifier-sweeps/*/pipeline.pid \
     runs/dataset-preparation/*/pipeline.pid; do
     [[ -f "${pid_file}" ]] || continue
     pipeline_pid="$(<"${pid_file}")"

@@ -106,3 +106,58 @@ def binary_metrics(
         "threshold_at_recall_95": threshold95,
         "achieved_recall_at_95": achieved,
     }
+
+
+def threshold_for_tp_retention(
+    scores: np.ndarray,
+    true_positive: np.ndarray,
+    target: float,
+) -> float:
+    if not 0.0 < target <= 1.0:
+        raise ValueError("TP retention must be in (0, 1]")
+    if true_positive.ndim != 2 or len(scores) != len(true_positive):
+        raise ValueError("Expected one TP row for every proposal score")
+    thresholds: list[float] = []
+    for column in range(true_positive.shape[1]):
+        positives = scores[true_positive[:, column].astype(bool)]
+        if not len(positives):
+            continue
+        required = math.ceil(target * len(positives))
+        thresholds.append(float(np.sort(positives)[::-1][required - 1]))
+    if not thresholds:
+        raise ValueError("Calibration produced no true-positive proposals")
+    return min(thresholds)
+
+
+def proposal_gate_metrics(
+    scores: np.ndarray,
+    true_positive: np.ndarray,
+    threshold: float,
+) -> dict[str, float]:
+    kept = scores >= threshold
+    counts = true_positive.sum(axis=0)
+    retained = np.logical_and(true_positive, kept[:, None]).sum(axis=0)
+    retention = np.divide(
+        retained,
+        counts,
+        out=np.ones_like(retained, dtype=np.float64),
+        where=counts > 0,
+    )
+    false_at_50 = ~true_positive[:, 0]
+    rejected_false = np.logical_and(~kept, false_at_50).sum()
+    metrics = {
+        "threshold": threshold,
+        "proposals": len(scores),
+        "proposals_kept": int(kept.sum()),
+        "proposals_rejected": int((~kept).sum()),
+        "minimum_tp_retention": float(retention[counts > 0].min()),
+        "mean_tp_retention": float(retention[counts > 0].mean()),
+        "false_proposal_rejection_iou50": _divide(
+            float(rejected_false), float(false_at_50.sum())
+        ),
+    }
+    for index, value in enumerate(retention):
+        suffix = 50 + 5 * index
+        metrics[f"tp_count_iou{suffix}"] = int(counts[index])
+        metrics[f"tp_retention_iou{suffix}"] = float(value)
+    return metrics

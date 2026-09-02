@@ -52,3 +52,8 @@ cascade:
   classifier_batch: 256
   workers: 8
   device: cuda:0
+
+sweep:
+  target_tp_retention: 0.995
+  retentions: [0.95, 0.98, 0.99, 0.995, 0.999, 1.0]
+  sanity_tolerance: 0.000000001

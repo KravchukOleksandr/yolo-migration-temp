@@ -666,6 +666,68 @@ surviving detections keep their original YOLO confidence, Ultralytics computes
 the usual precision, recall, mAP50, mAP50-95, PR curves, confusion matrices,
 and per-class results without a synthetic fused score.
 
+### Safe proposal sweep for existing weights
+
+Use this mode to test an existing detector and verifier without downloading
+data, tuning, or training:
+
+```bash
+make verifier-sweep \
+  DETECTOR=/absolute/path/to/yolo.pt \
+  VERIFIER_MODEL=/absolute/path/to/verifier/last.pt
+```
+
+The command runs in the background. Follow it with:
+
+```bash
+tail -f "$(cat runs/LATEST_VERIFIER_SWEEP.txt)/sweep.log"
+```
+
+For each configured resolution, the sweep:
+
+1. Recreates the held-out calibration image split from the original train set.
+2. Runs YOLO and classifies its actual class `2` proposal crops.
+3. Checks that a zero verifier threshold exactly reproduces baseline metrics.
+4. Calculates candidate thresholds for several TP-retention targets.
+5. Selects a threshold that retains at least 99.5% of baseline YOLO true
+   positives at every IoU level from 0.50 through 0.95.
+6. Evaluates only that selected threshold on the official validation set.
+
+The official validation set is never used to select the threshold. Change the
+calibration target only when required:
+
+```bash
+make verifier-sweep \
+  DETECTOR=/path/to/yolo.pt \
+  VERIFIER_MODEL=/path/to/verifier.pt \
+  SAFE_TP_RETENTION=0.999
+```
+
+Results are stored under:
+
+```text
+runs/verifier-sweeps/<sweep-id>/
+├── sweep.log
+├── summary.json
+└── <resolution>/
+    ├── calibration-proposals.npz
+    ├── threshold-sweep.csv
+    ├── calibration-baseline/
+    ├── calibration-threshold-zero/
+    ├── baseline/
+    └── cascade/
+```
+
+`threshold-sweep.csv` reports proposal rejection and TP retention on
+calibration data. `summary.json` contains the selected per-resolution
+thresholds, the zero-threshold sanity result, standard YOLO metrics, per-class
+metrics, and baseline-to-cascade deltas.
+
+Use `last.pt` from this repository for a clean calibration split. Because an
+earlier official-validation result motivated this new experiment, treat that
+validation set as development data and confirm any production decision on new
+camera footage.
+
 ### Configuration and outputs
 
 Edit `configs/verifier.yaml` to change the trial count, searched epoch range,

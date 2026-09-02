@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := start
 
-.PHONY: start yolo26 yolo26-from-trial dataset verifier-prepare verifier verifier-validate stop setup download audit subset tune train validate pipeline test lint
+.PHONY: start yolo26 yolo26-from-trial dataset verifier-prepare verifier verifier-validate verifier-sweep stop setup download audit subset tune train validate pipeline test lint
 
 PYTHON ?= python3
 TRAIN_CONFIG ?= configs/train_yolo26.yaml
@@ -15,6 +15,7 @@ DETECTOR ?= weights/detector.pt
 LATEST_VERIFIER := $(shell cat runs/LATEST_VERIFIER.txt 2>/dev/null)
 VERIFIER_MODEL ?= $(if $(LATEST_VERIFIER),$(LATEST_VERIFIER)/train/last.pt,)
 VERIFIER_OUTPUT ?= $(if $(LATEST_VERIFIER),$(LATEST_VERIFIER)/yolo-validation-manual,runs/verifier/manual-validation)
+SAFE_TP_RETENTION ?= 0.995
 
 start:
 	bash scripts/start_pipeline.sh
@@ -57,6 +58,15 @@ verifier-validate:
 		--detector "$(DETECTOR)" \
 		--verifier "$(VERIFIER_MODEL)" \
 		--output "$(VERIFIER_OUTPUT)"
+
+verifier-sweep:
+	@test -f "$(DETECTOR)" || (echo "Detector not found: $(DETECTOR)"; exit 2)
+	@test -n "$(VERIFIER_MODEL)" || (echo "Set VERIFIER_MODEL=/path/to/last.pt"; exit 2)
+	@test -f "$(VERIFIER_MODEL)" || (echo "Verifier not found: $(VERIFIER_MODEL)"; exit 2)
+	PYTHON="$(PYTHON)" \
+	VERIFIER_CONFIG="$(VERIFIER_CONFIG)" \
+	SAFE_TP_RETENTION="$(SAFE_TP_RETENTION)" \
+		bash scripts/start_verifier_sweep.sh "$(DETECTOR)" "$(VERIFIER_MODEL)"
 
 stop:
 	bash scripts/stop_all.sh

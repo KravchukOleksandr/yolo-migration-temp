@@ -43,10 +43,15 @@ class VerifierRuntime:
         self.maximum_ratio = maximum_ratio
 
     @torch.inference_mode()
-    def score(self, image_path: str | Path, boxes: torch.Tensor) -> np.ndarray:
+    def score_with_validity(
+        self,
+        image_path: str | Path,
+        boxes: torch.Tensor,
+    ) -> tuple[np.ndarray, np.ndarray]:
         scores = np.ones(len(boxes), dtype=np.float32)
+        valid = np.zeros(len(boxes), dtype=bool)
         if not len(boxes):
-            return scores
+            return scores, valid
         tensors: list[torch.Tensor] = []
         indices: list[int] = []
         with Image.open(image_path) as image:
@@ -88,6 +93,7 @@ class VerifierRuntime:
                 )
                 tensors.append(preprocess_image(crop))
                 indices.append(index)
+                valid[index] = True
         for start in range(0, len(tensors), self.batch_size):
             batch = torch.stack(tensors[start : start + self.batch_size]).to(
                 self.device
@@ -99,6 +105,10 @@ class VerifierRuntime:
                 strict=True,
             ):
                 scores[index] = probability
+        return scores, valid
+
+    def score(self, image_path: str | Path, boxes: torch.Tensor) -> np.ndarray:
+        scores, _ = self.score_with_validity(image_path, boxes)
         return scores
 
 

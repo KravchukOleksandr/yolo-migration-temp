@@ -13,6 +13,16 @@ if TYPE_CHECKING:
 IMAGE_SUFFIXES = {".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
 
 
+def normalize_etag(value: object | None) -> str | None:
+    if value is None:
+        return None
+    etag = str(value).strip()
+    # Azure listing and download responses may differ in ETag quoting.
+    if len(etag) >= 2 and etag.startswith('"') and etag.endswith('"'):
+        return etag[1:-1]
+    return etag
+
+
 def blob_target(name: str) -> Path:
     source = PurePosixPath(name)
     if source.is_absolute() or ".." in source.parts or "\\" in name:
@@ -39,6 +49,9 @@ def download_blob(
     target = destination / relative
     if not target.resolve().is_relative_to(destination.resolve()):
         raise ValueError(f"Blob target escapes output directory: {name}")
+    etag = normalize_etag(etag)
+    if previous is not None:
+        previous = {**previous, "etag": normalize_etag(previous.get("etag"))}
     current = {"etag": etag, "size": size, "target": relative.as_posix()}
     if etag and previous == current and target.is_file():
         if target.stat().st_size == size:
@@ -50,9 +63,14 @@ def download_blob(
     try:
         with partial.open("wb") as stream:
             downloader = container.download_blob(name)
-            actual_etag = getattr(getattr(downloader, "properties", None), "etag", None)
-            if etag and actual_etag is not None and str(actual_etag) != etag:
-                raise RuntimeError(f"Blob changed during download; retry: {name}")
+            actual_etag = normalize_etag(
+                getattr(getattr(downloader, "properties", None), "etag", None)
+            )
+            if etag and actual_etag is not None and actual_etag != etag:
+                raise RuntimeError(
+                    f"Blob changed during download; retry: {name} "
+                    f"(expected ETag {etag!r}, received {actual_etag!r})"
+                )
             downloader.readinto(stream)
         if partial.stat().st_size != size:
             raise OSError(f"Downloaded size does not match listing: {name}")
@@ -130,7 +148,7 @@ def download_container(
         {
             "name": blob.name,
             "size": blob.size,
-            "etag": str(blob.etag) if getattr(blob, "etag", None) is not None else None,
+            "etag": normalize_etag(getattr(blob, "etag", None)),
         }
         for blob in container.list_blobs()
         if Path(blob.name).suffix.lower() in IMAGE_SUFFIXES | {".txt"}

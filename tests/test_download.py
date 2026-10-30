@@ -11,6 +11,7 @@ class FakeContainer:
     def __init__(self, files: dict[str, bytes]) -> None:
         self.files = files
         self.etags = dict.fromkeys(files, "initial")
+        self.response_etags: dict[str, str] = {}
         self.downloads: list[str] = []
         self.fail: str | None = None
 
@@ -28,7 +29,12 @@ class FakeContainer:
             if name == self.fail:
                 raise OSError("simulated interruption")
 
-        return SimpleNamespace(readinto=readinto)
+        return SimpleNamespace(
+            readinto=readinto,
+            properties=SimpleNamespace(
+                etag=self.response_etags.get(name, f'"{self.etags[name]}"')
+            ),
+        )
 
 
 class FakeService:
@@ -92,6 +98,81 @@ def test_changed_same_size_label_is_refreshed(tmp_path: Path) -> None:
 
     assert service.container.downloads == ["frame.txt"]
     assert (tmp_path / "labels/frame.txt").read_bytes().startswith(b"2 ")
+
+
+@pytest.mark.parametrize(
+    "listed,returned",
+    [
+        ("0x8DC123", '"0x8DC123"'),
+        ('"0x8DC123"', "0x8DC123"),
+        ('"0x8DC123"', '"0x8DC123"'),
+        ("0x8DC123", "0x8DC123"),
+    ],
+)
+@pytest.mark.parametrize("label", [b"", b"0 0.5 0.5 0.1 0.1"])
+def test_equivalent_azure_etags_allow_download_and_resume(
+    tmp_path: Path, listed: str, returned: str, label: bytes
+) -> None:
+    service = FakeService({"frame.jpg": b"image", "frame.txt": label})
+    service.container.etags = dict.fromkeys(service.container.files, listed)
+    service.container.response_etags = dict.fromkeys(service.container.files, returned)
+
+    download_container(service, "train", tmp_path, workers=1)
+
+    assert (tmp_path / "images/frame.jpg").read_bytes() == b"image"
+    assert (tmp_path / "labels/frame.txt").read_bytes() == label
+    state = json.loads((tmp_path / ".download-state.json").read_text())
+    assert {record["etag"] for record in state["blobs"].values()} == {"0x8DC123"}
+    service.container.downloads.clear()
+
+    download_container(service, "train", tmp_path, workers=1)
+
+    assert service.container.downloads == []
+
+
+@pytest.mark.parametrize(
+    "listed,returned",
+    [
+        ("version-two", '"version-three"'),
+        ("0x8DC123", '"0x8dc123"'),
+        ("0x8DC123", 'W/"0x8DC123"'),
+    ],
+)
+def test_real_etag_change_preserves_previous_file_and_state(
+    tmp_path: Path, listed: str, returned: str
+) -> None:
+    service = FakeService({"frame.jpg": b"image", "frame.txt": b"old"})
+    download_container(service, "train", tmp_path, workers=1)
+    old_state = (tmp_path / ".download-state.json").read_bytes()
+    service.container.files["frame.txt"] = b"new"
+    service.container.etags["frame.txt"] = listed
+    service.container.response_etags["frame.txt"] = returned
+
+    with pytest.raises(RuntimeError, match="Blob changed during download"):
+        download_container(service, "train", tmp_path, workers=1)
+
+    assert (tmp_path / "labels/frame.txt").read_bytes() == b"old"
+    assert not (tmp_path / "labels/frame.txt.part").exists()
+    assert (tmp_path / ".download-state.json").read_bytes() == old_state
+
+
+def test_quoted_etag_in_previous_state_does_not_force_redownload(
+    tmp_path: Path,
+) -> None:
+    service = FakeService({"frame.jpg": b"image", "frame.txt": b""})
+    download_container(service, "train", tmp_path, workers=1)
+    state_path = tmp_path / ".download-state.json"
+    state = json.loads(state_path.read_text())
+    for record in state["blobs"].values():
+        record["etag"] = '"initial"'
+    state_path.write_text(json.dumps(state))
+    service.container.downloads.clear()
+
+    download_container(service, "train", tmp_path, workers=1)
+
+    assert service.container.downloads == []
+    state = json.loads(state_path.read_text())
+    assert {record["etag"] for record in state["blobs"].values()} == {"initial"}
 
 
 def test_legacy_files_without_state_are_refreshed(tmp_path: Path) -> None:

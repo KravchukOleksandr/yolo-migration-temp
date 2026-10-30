@@ -150,6 +150,9 @@ names:
 
 Unchanged downloads are skipped using remote ETags and file sizes; changed
 files are refreshed. An old download without sync state is refreshed once.
+If a download is interrupted, rerun `make download`; completed files recorded
+in `data/train/.download-state.json` and `data/val/.download-state.json` are
+reused. Keep those state files and the downloaded data when updating the code.
 Download is not a destructive mirror: stale local samples absent from the
 containers are reported, not silently deleted.
 Do not change the containers while a download is running. If old local samples

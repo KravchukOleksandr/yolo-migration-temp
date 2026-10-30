@@ -1,0 +1,9 @@
+path: ..
+train:
+  - data/train/images
+  - external_dataset/.yolo/train/images
+val: data/val/images
+names:
+  0: person
+  1: helmet-head
+  2: no-helmet-head

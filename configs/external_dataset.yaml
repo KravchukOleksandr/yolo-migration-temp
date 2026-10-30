@@ -1,0 +1,88 @@
+output: external_dataset
+seed: 42
+validation_fraction: 0.2
+deployment_canvas: [1280, 736]
+training_imgsz: 1280
+deduplicate_against:
+  - data/train/images
+  - data/val/images
+near_duplicate_hamming: 2
+sources:
+  sfchd:
+    version: official-release-accessed-2026-10-30
+    url: https://github.com/lijfrank/SFCHD-SCALE
+    format: coco
+    root: external_dataset/raw/sfchd/unpacked/QY_final_dataset
+    image_root: images
+    annotations:
+      - "**/annotations/train.json"
+      - "**/annotations/val.json"
+    train_person_boxes: 3000
+    category_roles:
+      person: person
+      head: no_helmet
+      helmet: helmet_indicator
+      blur_head: unknown
+    no_helmet_complete: true
+    head_evidence_roles: [no_helmet, helmet_indicator]
+    selection_requires_joint_complete: true
+    allow_missing_images: true
+    respect_source_split: false
+    group_mode: sequence
+    min_frame_gap: 2
+    license: license-not-stated
+  shel5k:
+    version: mendeley-v4
+    url: https://data.mendeley.com/datasets/9rcv8mm682/4
+    format: voc
+    root: external_dataset/raw/shel5k
+    annotations:
+      - "**/*.xml"
+    train_person_boxes: 1000
+    category_roles:
+      person_with_helmet: person
+      person_with_hardhat: person
+      person_no_helmet: person
+      person_without_helmet: person
+      person: person
+      head: no_helmet
+      head_with_helmet: helmet_present
+      head_with_hardhat: helmet_present
+      helmet: helmet_indicator
+      face: ignore
+    no_helmet_complete: true
+    head_evidence_roles: [no_helmet, helmet_present]
+    selection_requires_joint_complete: true
+    respect_source_split: false
+    group_mode: image
+    exclude_images:
+      hard_hat_workers1130.png: mirrored_people_without_complete_person_labels
+      hard_hat_workers479.png: mirrored_people_without_complete_person_labels
+      hard_hat_workers4912.png: mirrored_people_without_complete_person_labels
+      hard_hat_workers584.png: mirrored_people_without_complete_person_labels
+    license: CC-BY-4.0
+  virat:
+    version: accepted-local-release
+    url: https://viratdata.org/
+    format: manifest
+    root: external_dataset/raw/virat
+    manifest: manifest.jsonl
+    train_person_boxes: 2000
+    no_helmet_complete: false
+    respect_source_split: false
+    min_frame_gap: 30
+    license: VIRAT-usage-agreement
+  night_surveillance:
+    version: official-release-accessed-2026-10-30
+    url: https://github.com/xiaowang1516/NightSurveillance
+    format: auto
+    root: external_dataset/raw/night_surveillance
+    manifest: manifest.jsonl
+    train_person_boxes: 2000
+    no_helmet_complete: false
+    category_roles:
+      person: person
+      pedestrian: person
+    respect_source_split: false
+    min_frame_gap: 16
+    license: academic-use-only

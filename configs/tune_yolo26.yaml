@@ -5,7 +5,7 @@ weights_dir: weights
 project: runs/tune-yolo26
 trials: 12
 epochs: 15
-imgsz: 960
+imgsz: 1280
 batch: 8
 workers: 8
 seed: 42
@@ -15,12 +15,16 @@ single_cls: false
 classes: [0, 2]
 fixed:
   optimizer: MuSGD
+  rect: true
+  multi_scale: 0.0
   box: 9.83
   cls: 0.65
   dfl: 0.96
-  copy_paste: 0.404
+  mosaic: 0.0
+  mixup: 0.0
+  copy_paste: 0.0
   fliplr: 0.304
-  close_mosaic: 10
+  close_mosaic: 0
   amp: true
   cos_lr: false
 search_space:
@@ -29,7 +33,5 @@ search_space:
   momentum: {type: float, low: 0.9, high: 0.98}
   weight_decay: {type: float, low: 0.0001, high: 0.0008, log: true}
   warmup_epochs: {type: float, low: 0.5, high: 3.0}
-  mosaic: {type: float, low: 0.85, high: 1.0}
-  mixup: {type: float, low: 0.0, high: 0.2}
   scale: {type: float, low: 0.5, high: 0.95}
   translate: {type: float, low: 0.1, high: 0.3}

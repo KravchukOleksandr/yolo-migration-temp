@@ -6,9 +6,7 @@ class FakeTrial:
         assert not (log and step is not None)
         return low
 
-    def suggest_int(
-        self, name: str, low: int, high: int, step: int, log: bool
-    ) -> int:
+    def suggest_int(self, name: str, low: int, high: int, step: int, log: bool) -> int:
         assert low < high
         return low
 
@@ -29,3 +27,26 @@ def test_declarative_search_space() -> None:
     )
 
     assert parameters == {"lr0": 0.001, "warmup": 1, "optimizer": "MuSGD"}
+
+
+def test_promoted_tuning_parameters_include_fixed_recipe_only() -> None:
+    from yolo_factory.common import promotable_train_parameters
+
+    parameters = promotable_train_parameters(
+        {
+            "optimizer": "MuSGD",
+            "rect": True,
+            "imgsz": 960,
+            "batch": 8,
+            "epochs": 15,
+            "patience": 5,
+            "cache": "disk",
+        },
+        {"lr0": 0.0004, "batch": 4},
+    )
+
+    assert parameters == {
+        "optimizer": "MuSGD",
+        "rect": True,
+        "lr0": 0.0004,
+    }

@@ -3,12 +3,18 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ultralytics import YOLO
-
 from .common import dump_json, load_yaml, materialize_dataset_config, run_metadata
+from .offline import offline_runtime
 
 MODEL_FAMILIES = {"yolov8", "yolo26"}
 MODEL_SIZES = {"n", "s", "m", "l", "x"}
+
+
+def local_checkpoint(value: str | Path) -> Path:
+    path = Path(value).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Local checkpoint does not exist: {path}")
+    return path
 
 
 def model_path(
@@ -33,7 +39,7 @@ def model_path(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train an Ultralytics detector")
-    parser.add_argument("--config", default="configs/train.yaml")
+    parser.add_argument("--config", default="configs/train_yolo26.yaml")
     parser.add_argument("--model", choices=sorted(MODEL_SIZES))
     parser.add_argument("--name")
     parser.add_argument("--resume", help="Path to a last.pt checkpoint")
@@ -54,17 +60,15 @@ def main() -> None:
         data_path = config_path.parent / data_path
     data = materialize_dataset_config(data_path)
     parameters.update(data=str(data), project=str(project), name=name)
-    weights = model_path(
-        size,
-        config.get("weights_dir", "weights"),
-        family,
-    )
     if args.resume:
-        weights = Path(args.resume).resolve()
+        weights = local_checkpoint(args.resume)
         parameters["resume"] = True
-    model = YOLO(str(weights))
-    model.train(**parameters)
-    run_dir = Path(model.trainer.save_dir)
+    else:
+        weights = model_path(size, config.get("weights_dir", "weights"), family)
+    with offline_runtime() as model_type:
+        model = model_type(str(weights))
+        model.train(**parameters)
+        run_dir = Path(model.trainer.save_dir)
     dump_json(
         {"model": weights, "parameters": parameters, **run_metadata()},
         run_dir / "run.json",

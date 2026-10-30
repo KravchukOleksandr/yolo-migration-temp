@@ -5,9 +5,14 @@ import gc
 from pathlib import Path
 
 import torch
-from ultralytics import YOLO
 
-from .common import dump_json, load_yaml, materialize_dataset_config
+from .common import (
+    dump_json,
+    load_yaml,
+    materialize_dataset_config,
+    promotable_train_parameters,
+)
+from .offline import offline_runtime
 from .train import model_path
 
 DEFAULT_FIXED = {
@@ -52,9 +57,7 @@ def suggest_parameters(trial: object, search_space: dict) -> dict[str, object]:
                 log=bool(specification.get("log", False)),
             )
         elif kind == "categorical":
-            parameters[name] = trial.suggest_categorical(
-                name, specification["choices"]
-            )
+            parameters[name] = trial.suggest_categorical(name, specification["choices"])
         else:
             raise ValueError(f"Unsupported search-space type for {name}: {kind}")
     return parameters
@@ -65,7 +68,11 @@ def objective_value(metrics: object, class_id: int | None) -> tuple[float, float
     if class_id is None:
         return aggregate, aggregate
     maps = metrics.box.maps
-    if class_id < 0 or class_id >= len(maps):
+    if (
+        class_id < 0
+        or class_id >= len(maps)
+        or class_id not in metrics.box.ap_class_index
+    ):
         message = f"Objective class {class_id} is absent from validation metrics"
         raise ValueError(message)
     return float(maps[class_id]), aggregate
@@ -73,18 +80,18 @@ def objective_value(metrics: object, class_id: int | None) -> tuple[float, float
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Tune an Ultralytics model")
-    parser.add_argument("--config", default="configs/tune.yaml")
+    parser.add_argument("--config", default="configs/tune_yolo26.yaml")
     return parser
 
 
 def main() -> None:
+    args = build_parser().parse_args()
     try:
         import optuna
     except ImportError as error:
         message = "Install tuning dependencies with pip install -e '.[tune]'"
         raise SystemExit(message) from error
 
-    args = build_parser().parse_args()
     config_path = Path(args.config).resolve()
     config = load_yaml(config_path)
     data_path = Path(config["data"])
@@ -118,7 +125,8 @@ def main() -> None:
                 config.get("weights_dir", "weights"),
                 config.get("family", "yolov8"),
             )
-            metrics = YOLO(str(weights)).train(**parameters)
+            with offline_runtime() as model_type:
+                metrics = model_type(str(weights)).train(**parameters)
             score, aggregate = objective_value(metrics, objective_class)
             trial.set_user_attr("aggregate_map50_95", aggregate)
             trial.set_user_attr("objective_map50_95", score)
@@ -142,7 +150,7 @@ def main() -> None:
         {
             "value": study.best_value,
             "objective_class": objective_class,
-            "parameters": study.best_params,
+            "parameters": promotable_train_parameters(fixed, study.best_params),
             "metrics": study.best_trial.user_attrs,
         },
         project / "best.json",

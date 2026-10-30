@@ -6,7 +6,7 @@ import statistics
 import time
 from pathlib import Path
 
-from .common import dump_json, resolve_dataset_paths
+from .common import dump_json, resolve_dataset_paths, split_paths
 from .dataset import box_diagonal, image_files, read_record
 
 
@@ -18,18 +18,29 @@ def percentile(values: list[float], quantile: float) -> float | None:
     return ordered[index]
 
 
-def scan(image_root: Path, csv_path: Path) -> dict[str, object]:
+def scan(
+    image_roots: Path | list[Path],
+    csv_path: Path,
+    allowed_classes: set[int] | None = None,
+) -> dict[str, object]:
+    if isinstance(image_roots, Path):
+        image_roots = [image_roots]
     rows: list[dict[str, object]] = []
     diagonals: list[float] = []
     errors: list[str] = []
     missing_labels = 0
     empty_labels = 0
-    paths = image_files(image_root)
+    paths = [
+        (image_path, image_root)
+        for image_root in image_roots
+        for image_path in image_files(image_root)
+    ]
     started = time.monotonic()
-    print(f"Scanning {len(paths)} images in {image_root}", flush=True)
-    for index, image_path in enumerate(paths, start=1):
+    roots = ", ".join(str(path) for path in image_roots)
+    print(f"Scanning {len(paths)} images in {roots}", flush=True)
+    for index, (image_path, image_root) in enumerate(paths, start=1):
         try:
-            record = read_record(image_path, image_root)
+            record = read_record(image_path, image_root, allowed_classes)
         except (OSError, ValueError) as error:
             errors.append(str(error))
             continue
@@ -90,11 +101,21 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     root, config = resolve_dataset_paths(args.data)
+    names = config["names"]
+    allowed_classes = (
+        set(range(len(names)))
+        if isinstance(names, list)
+        else {int(class_id) for class_id in names}
+    )
     output = Path(args.output)
     report: dict[str, dict[str, object]] = {}
     for split in ("train", "val"):
-        image_root = root / config[split]
-        report[split] = scan(image_root, output / f"{split}.csv")
+        image_roots = split_paths(root, config[split])
+        report[split] = scan(
+            image_roots,
+            output / f"{split}.csv",
+            allowed_classes,
+        )
     dump_json(report, output / "summary.json")
     print(f"Audit written to {output}")
     invalid = any(

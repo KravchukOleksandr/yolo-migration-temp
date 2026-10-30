@@ -22,6 +22,9 @@ tune = ["optuna>=4.0"]
 [project.scripts]
 yolo-audit = "yolo_factory.audit:main"
 yolo-download = "yolo_factory.download:main"
+yolo-external-dataset = "yolo_factory.external_dataset:main"
+yolo-import-virat = "yolo_factory.external_virat:main"
+yolo-apply-head-review = "yolo_factory.external_review:main"
 yolo-pipeline = "yolo_factory.pipeline:main"
 yolo-subset = "yolo_factory.subset:main"
 yolo-train = "yolo_factory.train:main"

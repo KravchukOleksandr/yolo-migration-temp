@@ -4,9 +4,11 @@ weights_dir: weights
 data: data.yaml
 project: runs/train
 name: null
+validation_imgsz: [1280]
 train:
-  imgsz: 1024
-  multi_scale: 0.25
+  imgsz: 1280
+  rect: true
+  multi_scale: 0.0
   batch: 6
   epochs: 100
   patience: 10
@@ -19,13 +21,13 @@ train:
   box: 9.83
   cls: 0.65
   dfl: 0.96
-  mosaic: 0.992
-  mixup: 0.05
-  copy_paste: 0.404
+  mosaic: 0.0
+  mixup: 0.0
+  copy_paste: 0.0
   scale: 0.9
   translate: 0.275
   fliplr: 0.304
-  close_mosaic: 10
+  close_mosaic: 0
   amp: true
   cache: disk
   workers: 8

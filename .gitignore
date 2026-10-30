@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 data/
+external_dataset/
 runs/
 weights/*.pt
 configs/.manifests/

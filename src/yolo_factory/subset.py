@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from .common import resolve_dataset_paths
+from .common import resolve_dataset_paths, split_paths
 from .dataset import image_files
 
 
@@ -40,8 +40,18 @@ def main() -> None:
     root, config = resolve_dataset_paths(args.data)
     output = Path(args.output).resolve()
     manifest_dir = output.parent / ".manifests"
-    train = choose(image_files(root / config["train"]), args.train_size, args.seed)
-    val = choose(image_files(root / config["val"]), args.val_size, args.seed + 1)
+    train_paths = [
+        image
+        for image_root in split_paths(root, config["train"])
+        for image in image_files(image_root)
+    ]
+    val_paths = [
+        image
+        for image_root in split_paths(root, config["val"])
+        for image in image_files(image_root)
+    ]
+    train = choose(train_paths, args.train_size, args.seed)
+    val = choose(val_paths, args.val_size, args.seed + 1)
     train_manifest = manifest_dir / "tune_train.txt"
     val_manifest = manifest_dir / "tune_val.txt"
     write_manifest(train, train_manifest)

@@ -230,6 +230,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Download datasets from Azure Blob")
     parser.add_argument("--output", default="data")
     parser.add_argument("--workers", type=int, default=16)
+    parser.add_argument(
+        "--split",
+        choices=("all", "train", "val"),
+        default="all",
+        help="Dataset split to download (default: both train and val)",
+    )
     return parser
 
 
@@ -238,12 +244,14 @@ def main() -> None:
     from azure.storage.blob import BlobServiceClient
 
     connection_string = required_env("AZURE_STORAGE_CONNECTION_STRING")
-    train_container = required_env("AZURE_TRAIN_CONTAINER")
-    val_container = required_env("AZURE_VAL_CONTAINER")
+    splits = ("train", "val") if args.split == "all" else (args.split,)
+    containers = {
+        split: required_env(f"AZURE_{split.upper()}_CONTAINER") for split in splits
+    }
     service = BlobServiceClient.from_connection_string(connection_string)
     output = Path(args.output)
-    download_container(service, train_container, output / "train", args.workers)
-    download_container(service, val_container, output / "val", args.workers)
+    for split, container in containers.items():
+        download_container(service, container, output / split, args.workers)
 
 
 if __name__ == "__main__":

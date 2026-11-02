@@ -3,6 +3,7 @@
 .PHONY: start yolo26 yolov8 check yolo26-from-trial external-dataset external-import-virat external-apply-review external-audit stop setup download audit subset tune train validate pipeline test lint
 
 PYTHON ?= python3
+SPLIT ?= all
 DATA_CONFIG ?= configs/data.yaml
 TRAIN_CONFIG ?= configs/train_yolo26.yaml
 TUNE_CONFIG ?= configs/tune_yolo26.yaml
@@ -53,7 +54,7 @@ setup:
 	$(PYTHON) -m pip install -e '.[dev,tune]'
 
 download:
-	$(PYTHON) -m yolo_factory.download
+	$(PYTHON) -m yolo_factory.download --split "$(SPLIT)"
 
 audit:
 	$(PYTHON) -m yolo_factory.audit --data "$(DATA_CONFIG)" --output runs/audit

@@ -117,6 +117,19 @@ set +a
 make download
 ```
 
+To download only validation data after loading the variables:
+
+```bash
+make download SPLIT=val
+```
+
+This writes to `data/val` without accessing the training container or changing
+`data/train`. Only `AZURE_STORAGE_CONNECTION_STRING` and `AZURE_VAL_CONTAINER`
+are required. Rerun the same command to continue an interrupted download.
+Use `make download SPLIT=train` for training data only; `make download` still
+downloads both splits. The equivalent validation-only Python command is
+`python -m yolo_factory.download --split val`.
+
 Containers may contain flat image/TXT pairs or source subfolders:
 
 ```text

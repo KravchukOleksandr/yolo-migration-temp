@@ -1,10 +1,12 @@
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
-from yolo_factory.download import blob_target, download_container
+from yolo_factory.download import blob_target, build_parser, download_container, main
 
 
 class FakeContainer:
@@ -45,6 +47,91 @@ class FakeService:
 
     def get_container_client(self, name: str) -> FakeContainer:
         return self.container
+
+
+@pytest.fixture
+def azure_client(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    service = FakeService({"frame.jpg": b"image", "frame.txt": b""})
+    service.get_container_client = Mock(wraps=service.get_container_client)
+    factory = Mock(return_value=service)
+    monkeypatch.setitem(
+        sys.modules,
+        "azure.storage.blob",
+        SimpleNamespace(BlobServiceClient=SimpleNamespace(from_connection_string=factory)),
+    )
+    for name in (
+        "AZURE_STORAGE_CONNECTION_STRING",
+        "AZURE_TRAIN_CONTAINER",
+        "AZURE_VAL_CONTAINER",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    return factory
+
+
+@pytest.mark.parametrize("split", [None, "all", "train", "val"])
+def test_cli_downloads_only_selected_splits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    azure_client: Mock,
+    split: str | None,
+) -> None:
+    selected = ("train", "val") if split in (None, "all") else (split,)
+    monkeypatch.setenv("AZURE_STORAGE_CONNECTION_STRING", "test-connection")
+    for name in selected:
+        monkeypatch.setenv(f"AZURE_{name.upper()}_CONTAINER", f"test-{name}")
+    arguments = ["download", "--output", str(tmp_path), "--workers", "1"]
+    if split is not None:
+        arguments.extend(["--split", split])
+    monkeypatch.setattr(sys, "argv", arguments)
+    untouched = tmp_path / "train" / "keep.txt"
+    if split == "val":
+        untouched.parent.mkdir()
+        untouched.write_text("keep training data")
+
+    main()
+
+    azure_client.assert_called_once_with("test-connection")
+    calls = azure_client.return_value.get_container_client.call_args_list
+    assert [call.args[0] for call in calls] == [f"test-{name}" for name in selected]
+    for name in selected:
+        assert (tmp_path / name / "images/frame.jpg").read_bytes() == b"image"
+        assert (tmp_path / name / "labels/frame.txt").read_bytes() == b""
+        assert (tmp_path / name / ".download-state.json").is_file()
+    if split == "val":
+        assert untouched.read_text() == "keep training data"
+        assert list(untouched.parent.iterdir()) == [untouched]
+    if split == "train":
+        assert not (tmp_path / "val").exists()
+
+
+@pytest.mark.parametrize(
+    "split,missing",
+    [
+        ("val", "AZURE_STORAGE_CONNECTION_STRING"),
+        ("val", "AZURE_VAL_CONTAINER"),
+        ("train", "AZURE_TRAIN_CONTAINER"),
+        ("all", "AZURE_VAL_CONTAINER"),
+    ],
+)
+def test_missing_required_env_fails_before_connection(
+    monkeypatch: pytest.MonkeyPatch, azure_client: Mock, split: str, missing: str
+) -> None:
+    monkeypatch.setenv("AZURE_STORAGE_CONNECTION_STRING", "test-connection")
+    monkeypatch.setenv("AZURE_TRAIN_CONTAINER", "test-train")
+    monkeypatch.setenv("AZURE_VAL_CONTAINER", "test-val")
+    monkeypatch.delenv(missing)
+    monkeypatch.setattr(sys, "argv", ["download", "--split", split])
+
+    with pytest.raises(SystemExit, match=f"Set {missing}"):
+        main()
+
+    azure_client.assert_not_called()
+
+
+def test_invalid_split_is_rejected() -> None:
+    with pytest.raises(SystemExit) as error:
+        build_parser().parse_args(["--split", "validation"])
+    assert error.value.code == 2
 
 
 @pytest.mark.parametrize(
